@@ -13,14 +13,14 @@ export const Footer: React.FC<FooterProps> = ({ darkMode, onScrollTo, onOpenLogi
         darkMode ? 'bg-black text-white' : 'bg-white text-neutral-900'
       }`}
     >
-      {/* Empty horizontal divider band matching image.png */}
+      {/* Empty horizontal divider band */}
       <div
         className={`h-6 md:h-8 border-t ${
           darkMode ? 'border-neutral-800' : 'border-neutral-200'
         }`}
       />
 
-      {/* 3 Columns: Product, Company, Social matching image.png */}
+      {/* Footer Navigation Columns */}
       <div
         className={`border-t grid grid-cols-1 md:grid-cols-12 ${
           darkMode ? 'border-neutral-800' : 'border-neutral-200'
@@ -108,7 +108,7 @@ export const Footer: React.FC<FooterProps> = ({ darkMode, onScrollTo, onOpenLogi
           </ul>
         </div>
 
-        {/* Social Icons Column matching image.png (aligned top-right) */}
+        {/* Social Links (aligned top-right) */}
         <div className="md:col-span-6 p-8 md:p-12 flex justify-start md:justify-end items-start">
           <div className="flex items-center gap-4 text-neutral-800 dark:text-neutral-200">
             {/* Facebook */}
@@ -153,7 +153,7 @@ export const Footer: React.FC<FooterProps> = ({ darkMode, onScrollTo, onOpenLogi
         </div>
       </div>
 
-      {/* Regulatory disclaimer + Aspect Logo row matching image.png */}
+      {/* Regulatory disclaimer & brand footer */}
       <div
         className={`border-t p-8 md:p-12 flex flex-col md:flex-row items-start md:items-center justify-between gap-8 ${
           darkMode ? 'border-neutral-800' : 'border-neutral-200'

@@ -127,11 +127,19 @@ export const LogosAndFeatures: React.FC<LogosAndFeaturesProps> = ({
           Bring conversation and delivery into one view
         </h2>
 
-        {/* Continuous Scrolling Integrations Marquee matching Screenshot */}
+        {/* Continuous Scrolling Integrations Marquee */}
         <div className="relative mt-5 sm:mt-6 w-full overflow-hidden">
           {/* Gradient Edge Masks for soft fade */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-28 bg-gradient-to-r from-white dark:from-black to-transparent z-10" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-28 bg-gradient-to-l from-white dark:from-black to-transparent z-10" />
+          <div
+            className={`pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-28 bg-gradient-to-r to-transparent z-10 ${
+              darkMode ? 'from-black' : 'from-white'
+            }`}
+          />
+          <div
+            className={`pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-28 bg-gradient-to-l to-transparent z-10 ${
+              darkMode ? 'from-black' : 'from-white'
+            }`}
+          />
 
           {/* Marquee Track */}
           <div className="animate-marquee gap-4 sm:gap-5 py-2">
@@ -156,7 +164,7 @@ export const LogosAndFeatures: React.FC<LogosAndFeaturesProps> = ({
         </div>
       </div>
 
-      {/* 2. Four-Column Clean Border Feature Navigation Bar matching Screenshot 2 */}
+      {/* Four-Column Feature Navigation Bar */}
       <div className={`border-t border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x ${
         darkMode ? 'border-neutral-800 divide-neutral-800' : 'border-neutral-200 divide-neutral-200'
       }`}>
@@ -177,7 +185,7 @@ export const LogosAndFeatures: React.FC<LogosAndFeaturesProps> = ({
                     : 'hover:bg-neutral-50 text-neutral-600'
               }`}
             >
-              {/* Active top line accent matching Screenshot 2 */}
+              {/* Active top line accent */}
               {isActive && (
                 <div className={`absolute top-0 left-0 right-0 h-0.5 ${
                   darkMode ? 'bg-white' : 'bg-neutral-900'
@@ -243,7 +251,7 @@ export const LogosAndFeatures: React.FC<LogosAndFeaturesProps> = ({
 
             <button
               onClick={() => onOpenLogin('signup')}
-              className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+              className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 hover:underline flex items-center gap-1 cursor-pointer"
             >
               <span>Test this module</span>
               <ArrowRight className="w-3 h-3" />

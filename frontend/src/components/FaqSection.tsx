@@ -62,7 +62,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ darkMode }) => {
         darkMode ? 'bg-black text-white border-neutral-800' : 'bg-white text-neutral-900 border-neutral-200'
       }`}
     >
-      {/* Top Header Block matching image.png */}
+      {/* Section Header */}
       <div className="pt-16 pb-12 px-6 md:px-12">
         <h2 className="text-3xl sm:text-4xl font-normal tracking-[-0.025em]">
           Frequently Asked Questions
@@ -83,7 +83,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ darkMode }) => {
         </button>
       </div>
 
-      {/* Accordion list separated by horizontal borders across full width matching image.png */}
+      {/* Accordion list */}
       <div className="w-full">
         {faqs.map((faq, idx) => {
           const isOpen = openIndex === idx;

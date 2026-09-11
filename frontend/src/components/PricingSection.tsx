@@ -20,7 +20,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
       }`}
     >
       <div className="pt-16 pb-12">
-        {/* Header matching image.png */}
+        {/* Section Header */}
         <div className="text-center px-6">
           <h2 className="text-3xl sm:text-4xl font-normal tracking-[-0.025em]">
             Pricing
@@ -31,7 +31,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
             Choose the plan that fits your needs
           </p>
 
-          {/* Toggle matching image.png: [toggle] Billed annually */}
+          {/* Annual billing toggle */}
           <div className="mt-5 flex items-center justify-center gap-2">
             <button
               onClick={() => setIsAnnual(!isAnnual)}
@@ -59,7 +59,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
           </div>
         </div>
 
-        {/* 3 Pricing Cards Grid matching image.png */}
+        {/* 3 Pricing Cards Grid */}
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6 px-6 md:px-12 items-stretch">
           
           {/* Card 1: Free */}
@@ -120,7 +120,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Startup (Highlighted with lavender/tinted styling from image.png) */}
+          {/* Card 2: Startup (Featured Tier) */}
           <div
             className={`rounded-2xl border p-6 sm:p-7 flex flex-col justify-between transition-colors ${
               darkMode 

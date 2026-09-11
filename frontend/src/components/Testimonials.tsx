@@ -24,13 +24,13 @@ export const Testimonials: React.FC<TestimonialsProps> = ({ darkMode }) => {
           Don't just take our word for it—see how our platform is empowering teams to achieve more, streamline workflows, and transform their day-to-day operations.
         </p>
 
-        {/* Rating Pill Badge matching Screenshot 3: 5 stars + "Real Results." */}
+        {/* Rating Pill Badge: 5 stars + "Real Results." */}
         <div className={`mt-8 inline-flex items-center gap-3 px-3.5 py-1.5 rounded-full border shadow-2xs ${
           darkMode 
             ? 'bg-neutral-900 border-neutral-800 text-neutral-200' 
             : 'bg-neutral-50 border-neutral-200 text-neutral-800'
         }`}>
-          <div className="flex items-center gap-1 text-[#2e1065] dark:text-purple-400">
+          <div className="flex items-center gap-1 text-neutral-900 dark:text-neutral-100">
             {[...Array(5)].map((_, i) => (
               <svg 
                 key={i} 
@@ -48,7 +48,7 @@ export const Testimonials: React.FC<TestimonialsProps> = ({ darkMode }) => {
         </div>
       </div>
 
-      {/* 2-Column Testimonial Grid matching Screenshot 3 with vertical divider */}
+      {/* 2-Column Testimonial Grid with vertical divider */}
       <div className={`border-t grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x ${
         darkMode ? 'border-neutral-800 divide-neutral-800' : 'border-neutral-200 divide-neutral-200'
       }`}>

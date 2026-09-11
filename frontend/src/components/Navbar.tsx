@@ -18,13 +18,15 @@ interface NavbarProps {
   onToggleTheme: () => void;
   onOpenLogin: (mode?: 'signup' | 'login' | 'contact') => void;
   onScrollTo: (id: string) => void;
+  onOpenDashboard?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   darkMode,
   onToggleTheme,
   onOpenLogin,
-  onScrollTo
+  onScrollTo,
+  onOpenDashboard,
 }) => {
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -98,7 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2.5 font-medium text-sm">
-                    <ScanSearch className="w-4 h-4 text-indigo-500" />
+                    <ScanSearch className="w-4 h-4 text-neutral-900 dark:text-neutral-100" />
                     <span>Meeting & Email Extraction</span>
                   </div>
                   <p className={`text-xs mt-0.5 pl-6 ${darkMode ? 'text-neutral-400' : 'text-neutral-500'}`}>
@@ -127,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     darkMode ? 'hover:bg-neutral-900 border-neutral-800' : 'hover:bg-neutral-100 border-neutral-100'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-semibold text-indigo-500">
+                  <div className="flex items-center justify-between text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                     <span className="flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" />
                       Try Interactive Scanner
@@ -180,8 +182,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Right Action Items: Login button + Theme Toggle matching Screenshot 1 */}
+        {/* Right Action Items: Login button + Theme Toggle */}
         <div className="flex items-center gap-3">
+          {onOpenDashboard && (
+            <button
+              onClick={onOpenDashboard}
+              className="inline-flex items-center gap-1.5 font-semibold text-xs sm:text-sm px-3.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-all shadow-xs cursor-pointer"
+            >
+              <span>Dashboard</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <button
             id="nav-login-btn"
             onClick={() => onOpenLogin('login')}
@@ -194,7 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             Login
           </button>
 
-          {/* Theme Toggle Sun/Moon Button matching Screenshot 1 */}
+          {/* Theme Toggle Sun/Moon Button */}
           <button
             id="theme-toggle-btn"
             onClick={onToggleTheme}
@@ -223,9 +235,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className={`md:hidden border-t px-6 py-4 space-y-3 ${
-          darkMode ? 'bg-black border-neutral-800 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'
+        <div className={`md:hidden border-b px-6 py-4 space-y-3 ${
+          darkMode ? 'bg-black border-neutral-800' : 'bg-white border-neutral-200'
         }`}>
+          {onOpenDashboard && (
+            <button 
+              onClick={() => { setMobileMenuOpen(false); onOpenDashboard(); }}
+              className="w-full py-2.5 text-center rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold text-sm transition-colors shadow-xs cursor-pointer"
+            >
+              Open Dashboard
+            </button>
+          )}
           <button 
             onClick={() => { setMobileMenuOpen(false); onScrollTo('features-section'); }}
             className="block w-full text-left py-2 font-medium"

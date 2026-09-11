@@ -8,13 +8,15 @@ interface LoginModalProps {
   onClose: () => void;
   darkMode: boolean;
   initialMode?: AuthMode;
+  onLoginSuccess?: () => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onClose,
   darkMode,
-  initialMode = 'signup'
+  initialMode = 'signup',
+  onLoginSuccess,
 }) => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
@@ -42,7 +44,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setTimeout(() => {
         setIsSubmitted(false);
         onClose();
-      }, 1500);
+        if (onLoginSuccess) onLoginSuccess();
+      }, 1000);
     }, 600);
   };
 
@@ -54,7 +57,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setTimeout(() => {
         setIsSubmitted(false);
         onClose();
-      }, 1500);
+        if (onLoginSuccess) onLoginSuccess();
+      }, 1000);
     }, 600);
   };
 
@@ -63,10 +67,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/40 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
     >
-      {/* Centered Authentication Card matching image.png */}
+      {/* Centered Authentication Card */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`w-full max-w-[420px] rounded-2xl p-8 sm:p-10 shadow-xl sm:shadow-2xl border transition-all relative ${
+        className={`w-full max-w-[420px] rounded-none p-8 sm:p-10 shadow-xl sm:shadow-2xl border transition-all relative ${
           darkMode
             ? 'bg-[#0f0f12] border-neutral-800 text-white'
             : 'bg-white border-neutral-200/90 text-neutral-950'
@@ -174,7 +178,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
               )}
 
-              {/* Primary Button matching image.png */}
+              {/* Primary Submit Button */}
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -193,7 +197,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   : 'Send message'}
               </button>
 
-              {/* Secondary Google Button matching image.png */}
+              {/* Secondary Google OAuth Button */}
               {mode !== 'contact' && (
                 <button
                   type="button"
@@ -230,7 +234,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               )}
             </form>
 
-            {/* Bottom Toggle Text matching image.png */}
+            {/* Auth Mode Switch Link */}
             <div className="mt-8 text-center text-xs sm:text-[13px] text-neutral-600 dark:text-neutral-400 space-y-2">
               {mode === 'signup' && (
                 <div>

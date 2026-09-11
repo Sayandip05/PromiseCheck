@@ -4,7 +4,7 @@
 
 PromiseCheck helps SaaS teams capture promises made to customers, assign accountable owners, connect promises to engineering work, detect delivery conflicts, and communicate changes before trust is damaged.
 
-> **Project status:** implementation blueprint, dated September 10, 2026. The conversation has produced product designs and visual mockups; it has not produced a running application, verified integrations, or a deployed service. This documentation defines the full required product. The proposed folders, routes, configuration, and commands are implementation contracts, not claims that those files or capabilities already exist.
+> **Project status:** Architectural specification and implementation blueprint. The core frontend application has been established in `frontend/`; the backend services, integrations catalog, and operational pipelines are being implemented according to the contracts defined below.
 >
 > **Scope commitment:** MCP, real integrations, permissions, operational reliability, and end-to-end delivery verification are required release capabilities. Phases describe build order, not features that may be silently dropped. Each customer enables only the integrations they authorize; product support for the integration is still required.
 
@@ -200,150 +200,102 @@ MCP is a required interface in this product, but provider event ingestion and sc
 
 ## Scalable repository layout
 
-The following is the **proposed repository structure**. Indentation indicates ownership; these directories are not created by this documentation deliverable. The application is a modular monolith, with API, worker, scheduler, dispatcher and MCP process entrypoints sharing one domain codebase.
+PromiseCheck is structured as a **feature-based modular monolith**. The backend API, background workers, beat scheduler, outbox dispatcher, and MCP server all share a unified, decoupled codebase without artificial subpackaging or `sys.path` workarounds.
 
 ```text
-promisecheck/
+PromiseCheck/
   README.md
   architecture.md
-  .env.example
+  Dockerfile                   Multi-stage container (frontend & backend targets)
+  docker-compose.yml           Full local stack (Postgres, Redis, API, Worker, Beat, Dispatcher, Web)
+  requirements.txt             Python root dependencies
+  .env.example                 Environment configuration template
   .gitignore
-  compose.yaml
-  Makefile
-  apps/
-    web/
-      package.json
-      src/
-        app/                   routing, session bootstrap, providers
-        features/
-          auth/
-          onboarding/
-          overview/
-          commitments/
-          customers/
-          reviews/
-          meetings/
-          integrations/
-          notifications/
-          settings/
-        components/ui/         reusable accessible visual components
-        api/generated/         client generated from OpenAPI
-        lib/                   HTTP transport, dates, error handling
-        styles/
-      tests/
-        components/
-        e2e/
-    backend/
-      pyproject.toml
-      alembic.ini
-      migrations/versions/
-      src/promisecheck/
-        entrypoints/
-          api.py
-          worker.py
-          scheduler.py
-          dispatcher.py
-          mcp_server.py
-        bootstrap/             dependency wiring and module registration
-        platform/
-          config/
-          database/
-          security/
-          secrets/
-          storage/
-          messaging/
-          telemetry/
-          http/
-        modules/
-          identity/
-          workspaces/
-          integrations/
-          ingestion/
-          customers/
-          commitments/
-          engineering/
-          risk/
-          delivery/
-          notifications/
-          ai/
-          mcp/
-          audit/
-          operations/
-        connectors/
-          contracts/
-          google_calendar/
-          google_meet/
-          google_drive/
-          gmail/
-          recall/
-          speech_to_text/
-          jira/
-          linear/
-          slack/
-          email/
-          external_mcp/
-      tests/
-        unit/
-        integration/
-        contracts/
-        authorization/
-        workflows/
-        recovery/
-  packages/
-    contracts/
-      openapi/
-      events/
-      mcp/
-  evaluations/
-    datasets/                  consented or synthetic, classified by source
-    expected/
-    runners/
-    reports/
-  infrastructure/
-    containers/
-    terraform/
-      modules/
-      environments/
-        staging/
-        production/
-    observability/
-  scripts/
-    development/
-    migration/
-    backup_restore/
-  docs/
-    integrations/
-    runbooks/
-    adr/
-    security/
-  .github/workflows/
+  frontend/                    React + TypeScript + Vite SPA
+    package.json
+    vite.config.ts
+    index.html
+    public/
+      images/                  Static frontend images and assets
+    src/
+      components/              UI and layout components
+      pages/                   Feature pages (Auth, Commitments, Meetings, Settings)
+      services/                API client and HTTP transport
+      types/                   Frontend TypeScript schemas
+  backend/                     FastAPI modular monolith
+    pyproject.toml             Dependency, packaging, ruff, and pytest configurations
+    alembic.ini                Database migration configuration
+    main.py                    Root convenience entrypoint (python main.py)
+    migrations/                Alembic environment and version scripts
+    src/
+      main.py                  FastAPI application factory, lifespan, CORS, and router registration
+      core/                    Shared platform infrastructure
+        config.py              Pydantic v2 settings, Twelve-Factor external configuration
+        database.py            SQLAlchemy async engine and session factory
+        security.py            JWT authentication and password hashing utilities
+        logging.py             Standard-stream structured logging setup
+      modules/                 Vertical business capability slices
+        identity/              Users, authentication, session lifecycle
+        workspaces/            Tenant isolation, memberships, and roles
+        commitments/           Commitment lifecycle, revisions, evidence matching
+        customers/             Customer accounts, domain mappings
+        engineering/           Jira & Linear ticket synchronization, field mappings
+        risk/                  Deadline analysis and conflict detection
+        delivery/              Fulfillment verification and owner attestation
+        notifications/         Notification drafting, approval flows, delivery state
+        ingestion/             Meeting uploads, webhook processing, transcript parsing
+        audit/                 Audit trails and immutable access logs
+        operations/            Tenant health, usage budgets, and operations
+      connectors/              External integration adapters
+        base.py                Abstract connector interface
+        google_calendar.py     Google Calendar API adapter
+        google_meet.py         Google Meet API adapter
+        google_drive.py        Google Drive API adapter
+        gmail.py               Gmail API adapter
+        recall.py              Recall.ai capture adapter
+        speech_to_text.py      Audio transcription adapter
+        jira.py                Atlassian Jira REST adapter
+        linear.py              Linear GraphQL adapter
+        slack.py               Slack notifications adapter
+        email.py               Transactional email adapter
+        external_mcp.py        External Model Context Protocol client adapter
+      ai/                      Model integration layer
+        service.py             Prompt composition and LLM extraction service
+        prompts.py             Versioned extraction and matching prompts
+        router.py              AI evaluation and ad-hoc extraction endpoints
+      mcp/                     Model Context Protocol support
+        server.py              PromiseCheck MCP tool and resource provider
+        client.py              Controlled external MCP client connection
+        router.py              MCP HTTP endpoint (/mcp)
+      jobs/                    Asynchronous workflow execution
+        celery_app.py          Centralized Celery application and task registration
+        dispatcher.py          Transactional outbox event dispatcher
+        tasks.py               Background task definitions
+      entrypoints/             Process entrypoint scripts
+        worker.py              Celery worker process
+        scheduler.py           Celery Beat periodic scheduler process
+        dispatcher.py          Outbox polling dispatcher process
+        mcp_server.py          Standalone MCP server runner
+    tests/
+      conftest.py              Pytest fixtures and test client setup
+      unit/                    Unit tests for config, health, security, and packages
+
 ```
 
 ### Inside a business module
 
+Modules are organized as lightweight, feature-based packages. Instead of rigid, empty four-layer boilerplate (`domain/application/infrastructure/presentation`), each module contains only the files needed for its domain:
+
 ```text
 modules/commitments/
-  domain/
-    entities.py
-    value_objects.py
-    policies.py
-    events.py
-    errors.py
-  application/
-    commands.py
-    queries.py
-    handlers.py
-    ports.py
-  infrastructure/
-    models.py
-    repositories.py
-    event_handlers.py
-  presentation/
-    routes.py
-    schemas.py
+  router.py        FastAPI route handlers and dependency injection
+  schemas.py       Pydantic input/output validation models
+  models.py        SQLAlchemy ORM models
+  service.py       Core business logic and domain policies
+  repository.py    Database access and persistence operations
 ```
 
-Dependency rule: presentation calls application; application uses domain and abstract ports; infrastructure implements ports. Domain code must not import FastAPI, Celery, provider SDKs or an LLM client. Connectors translate provider data and errors into application contracts. Cross-module changes go through application interfaces or versioned events, not another module's ORM internals.
+Dependency rule: Routers handle transport and validation, invoking services. Services coordinate business policies and call repositories. Cross-module collaboration occurs via clean service/repository interfaces or transactional outbox events, never by mutating another module's database internals directly.
 
 Frontend features own their views, queries and state. Shared UI components contain no customer or commitment business rules. Generated API clients must not be edited manually.
 
@@ -383,13 +335,82 @@ Pin supported dependency versions in lockfiles during implementation. No package
 
 Never commit real `.env` files. `.env.example` must contain placeholder values and descriptions only. React build variables are public and must not contain secrets.
 
-### Expected startup experience after implementation
+### Startup and development experience
 
-The repository must provide documented commands for dependency installation, local infrastructure, database migrations, API startup, worker startup, scheduler/dispatcher startup, frontend startup, and MCP startup. A future `make dev` should orchestrate these processes, but **it is not executable in this documentation-only deliverable**.
+PromiseCheck supports both local development and containerized execution using Docker Compose.
 
-Local development uses one low-concurrency worker and small synthetic datasets. Real integrations are tested with authorized development accounts. On an 8 GB machine, use hosted LLM/speech APIs and run focused integration scenarios; run sustained load and recovery tests in a staging environment.
+#### 1. Full Stack via Docker Compose (Recommended)
+All services (PostgreSQL, Redis, Backend API, Celery Worker, Celery Beat Scheduler, Outbox Dispatcher, and Vite Frontend) can be launched simultaneously using the root multi-stage `Dockerfile`:
 
-The web deployment should expose frontend and `/api` through the same site origin where feasible. Provider callback URLs need a reachable HTTPS development/staging endpoint registered with the provider. Local-only services cannot receive arbitrary public callbacks without an approved ingress route.
+```bash
+# Copy and configure environment variables
+cp .env.example .env
+
+# Build and start all services
+docker compose up --build
+```
+- Frontend: `http://localhost:3000`
+- Backend API & OpenAPI Docs: `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/health/ready`
+
+#### 2. Local backend development
+
+Ensure PostgreSQL and Redis are running locally (or via `docker compose up -d postgres redis`):
+
+```bash
+# Set up Python virtual environment (from repo root)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run database migrations
+cd backend
+alembic upgrade head
+
+# Option A: Start backend via root convenience entrypoint
+python main.py
+
+# Option B: Start backend via uvicorn with live reload
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### 3. Running background processes & workers
+Background workers and periodic dispatchers can be run from the `backend/` directory:
+
+```bash
+cd backend
+
+# Celery Worker (executes async jobs and ingestion tasks)
+python src/entrypoints/worker.py
+
+# Celery Beat (schedules recurring health checks and reconciliation)
+python src/entrypoints/scheduler.py
+
+# Outbox Dispatcher (polls outbox events and pushes to message broker)
+python src/entrypoints/dispatcher.py
+
+# Standalone MCP Server
+python src/entrypoints/mcp_server.py
+```
+
+#### 4. Running tests and linter
+```bash
+cd backend
+
+# Run the pytest test suite
+pytest tests/ -v
+
+# Run code style and lint checks with Ruff
+ruff check .
+ruff format --check .
+```
+
+#### 5. Local frontend development
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ### API contract outline
 
@@ -441,7 +462,7 @@ Every phase is mandatory for the full release.
 
 Read [architecture.md](architecture.md) for functional and non-functional requirements, access policy, data design, service contracts, sequence diagrams, failure handling, MCP security and architectural decisions.
 
-Provider details below were consulted in the preceding design discussion on September 10, 2026. Revalidate exact scopes, protocol versions, event schemas, regional endpoints and provider approval requirements during connector implementation. These documents are paraphrased, not reproduced.
+Provider documentation and technical specifications for integrations. Revalidate exact scopes, protocol versions, event schemas, regional endpoints and provider approval requirements during connector implementation:
 
 - [Google Meet artifacts](https://developers.google.com/workspace/meet/api/guides/artifacts)
 - [Google Meet authorization](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize)

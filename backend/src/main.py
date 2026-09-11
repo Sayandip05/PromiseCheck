@@ -1,0 +1,112 @@
+"""PromiseCheck FastAPI Application Entrypoint."""
+
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from fastapi import FastAPI, Response, status
+from fastapi.middleware.cors import CORSMiddleware
+
+__version__ = "0.1.0"
+from core.config import settings
+from core.database import async_engine, check_database_health
+from core.logging import get_logger, setup_logging
+from jobs.celery_app import check_redis_health
+
+# Business module routers
+from modules.audit.router import router as audit_router
+from modules.commitments.router import router as commitments_router
+from modules.customers.router import router as customers_router
+from modules.delivery.router import router as delivery_router
+from modules.engineering.router import router as engineering_router
+from modules.identity.router import router as identity_router
+from modules.ingestion.router import router as ingestion_router
+from modules.notifications.router import router as notifications_router
+from modules.operations.router import router as operations_router
+from modules.risk.router import router as risk_router
+from modules.workspaces.router import router as workspaces_router
+
+logger = get_logger("promisecheck.app")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Graceful startup and shutdown lifecycle management (Twelve-Factor Factor IX)."""
+    setup_logging()
+    logger.info(f"Starting PromiseCheck v{__version__} in '{settings.APP_ENV}' mode")
+    yield
+    logger.info("Initiating graceful shutdown...")
+    await async_engine.dispose()
+    logger.info("Database connection pool disposed. Shutdown complete.")
+
+
+app = FastAPI(
+    title="PromiseCheck API",
+    description="Customer commitments, connected from conversation to verified delivery.",
+    version=__version__,
+    lifespan=lifespan,
+    docs_url="/docs" if settings.APP_ENV != "production" else None,
+    redoc_url="/redoc" if settings.APP_ENV != "production" else None,
+)
+
+# Dynamic CORS Middleware from Twelve-Factor external configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/healthz", tags=["Health"])
+async def liveness_probe() -> dict[str, str]:
+    """Liveness probe: returns 200 OK immediately if the web process is alive."""
+    return {"status": "ok", "service": "promisecheck"}
+
+
+@app.get("/api/v1/health", tags=["Health"])
+async def readiness_probe(response: Response) -> dict:
+    """Readiness probe: actively checks database and Redis connectivity.
+
+    Returns HTTP 200 if all services are reachable, or HTTP 503 if any dependency is degraded.
+    """
+    db_ok, db_msg = await check_database_health()
+    redis_ok, redis_msg = await check_redis_health()
+
+    is_healthy = db_ok and redis_ok
+    if not is_healthy:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return {
+        "status": "healthy" if is_healthy else "unhealthy",
+        "version": __version__,
+        "checks": {
+            "database": db_msg,
+            "redis": redis_msg,
+        },
+    }
+
+
+# Mount all feature module routers under /api/v1
+app.include_router(identity_router, prefix="/api/v1")
+app.include_router(workspaces_router, prefix="/api/v1")
+app.include_router(commitments_router, prefix="/api/v1")
+app.include_router(customers_router, prefix="/api/v1")
+app.include_router(engineering_router, prefix="/api/v1")
+app.include_router(risk_router, prefix="/api/v1")
+app.include_router(delivery_router, prefix="/api/v1")
+app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(ingestion_router, prefix="/api/v1")
+app.include_router(audit_router, prefix="/api/v1")
+app.include_router(operations_router, prefix="/api/v1")
+
+
+def run() -> None:
+    """Console script entrypoint."""
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
+
+
+if __name__ == "__main__":
+    run()

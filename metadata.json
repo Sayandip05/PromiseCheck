@@ -1,6 +1,0 @@
-{
-  "name": "PromiseCheck",
-  "description": "Never miss a customer commitment. PromiseCheck finds promises in meeting notes and emails, tracks progress, and alerts your team before deadlines are at risk.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

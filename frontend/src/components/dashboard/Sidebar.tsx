@@ -10,6 +10,8 @@ import {
   Settings,
   LogOut,
   Building2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { DashboardView, Workspace } from '../../types/dashboard';
@@ -23,7 +25,9 @@ interface SidebarProps {
   currentWorkspace: Workspace;
   onSwitchWorkspace: (workspace: Workspace) => void;
   reviewCount: number;
-  onSignOut?: () => void;
+  onSignOut: () => void;
+  darkMode?: boolean;
+  onToggleTheme?: () => void;
 }
 
 export const Logo = () => {
@@ -82,6 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSwitchWorkspace,
   reviewCount,
   onSignOut,
+  darkMode = false,
+  onToggleTheme,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -168,6 +174,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom Profile & Sign out */}
         <div className="pt-2 border-t border-neutral-200/80 dark:border-neutral-800 flex flex-col gap-1.5">
+          {onToggleTheme && (
+            <div className={`flex items-center ${open ? 'justify-between px-2.5 py-1' : 'justify-center py-1'}`}>
+              {open && (
+                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  {darkMode ? 'Dark mode' : 'Light mode'}
+                </span>
+              )}
+              <button
+                onClick={onToggleTheme}
+                aria-label="Toggle dark/light mode"
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                className={`p-2 rounded-full border transition-all cursor-pointer ${
+                  darkMode 
+                    ? 'border-neutral-700 text-neutral-200 hover:bg-neutral-800' 
+                    : 'border-neutral-200 text-neutral-800 hover:bg-neutral-100 shadow-2xs'
+                }`}
+              >
+                {darkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              </button>
+            </div>
+          )}
+
           <SidebarLink
             link={{
               label: 'Workspace Admin',

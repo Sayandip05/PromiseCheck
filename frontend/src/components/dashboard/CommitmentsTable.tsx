@@ -54,42 +54,42 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
     switch (status) {
       case 'at-risk':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100/70 text-amber-800 border border-amber-200/60">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             {label}
           </span>
         );
       case 'overdue':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100/70 text-red-800 border border-red-200/60">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100/70 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-200/60 dark:border-red-800/60">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
             {label}
           </span>
         );
       case 'blocked':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100/70 text-orange-800 border border-orange-200/60">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100/70 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300 border border-orange-200/60 dark:border-orange-800/60">
             <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
             {label}
           </span>
         );
       case 'awaiting-review':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-200/80 text-neutral-900 border border-neutral-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-200/80 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 dark:bg-neutral-400" />
             {label}
           </span>
         );
       case 'delivered':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100/70 text-emerald-800 border border-emerald-200/60">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             {label}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-100 text-neutral-700 border border-neutral-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
             <span className="w-1.5 h-1.5 rounded-full bg-neutral-500" />
             {label}
           </span>
@@ -107,19 +107,19 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
   return (
     <div className="mb-6">
       {/* Top Filter and Tab Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3 mb-4">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
           <button
             onClick={() => onTabChange('all')}
             className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium pb-2 -mb-3 transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'all'
-                ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                : 'text-neutral-500 hover:text-neutral-800'
+                ? 'text-neutral-900 dark:text-white border-b-2 border-neutral-900 dark:border-white font-bold'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <span>All</span>
-            <span className="text-xs text-neutral-400 font-normal">{allCount}</span>
+            <span className="text-xs text-neutral-400 dark:text-neutral-500 font-normal">{allCount}</span>
           </button>
 
           <button
@@ -132,16 +132,16 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
             }}
             className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium pb-2 -mb-3 transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'needs-attention'
-                ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                : 'text-neutral-500 hover:text-neutral-800'
+                ? 'text-neutral-900 dark:text-white border-b-2 border-neutral-900 dark:border-white font-bold'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <span>Needs attention</span>
             <span
               className={`text-xs px-1.5 py-0.2 rounded-full font-bold ${
                 activeTab === 'needs-attention'
-                  ? 'bg-neutral-200 text-neutral-900'
-                  : 'text-neutral-400'
+                  ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+                  : 'text-neutral-400 dark:text-neutral-500'
               }`}
             >
               {needsAttentionCount}
@@ -152,12 +152,12 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
             onClick={() => onTabChange('awaiting-review')}
             className={`flex items-center gap-1.5 text-xs sm:text-sm font-medium pb-2 -mb-3 transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'awaiting-review'
-                ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                : 'text-neutral-500 hover:text-neutral-800'
+                ? 'text-neutral-900 dark:text-white border-b-2 border-neutral-900 dark:border-white font-bold'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <span>Awaiting review</span>
-            <span className="text-xs text-neutral-400 font-normal">{awaitingReviewCount}</span>
+            <span className="text-xs text-neutral-400 dark:text-neutral-500 font-normal">{awaitingReviewCount}</span>
           </button>
         </div>
 
@@ -167,20 +167,20 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
           <div className="relative">
             <button
               onClick={() => setOwnerDropdownOpen(!ownerDropdownOpen)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-700 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-750 transition-colors cursor-pointer"
             >
               <span>{ownerFilter === 'all' ? 'All owners' : ownerFilter}</span>
               <ChevronDown className="w-3 h-3 text-neutral-400" />
             </button>
 
             {ownerDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-44 bg-white border border-neutral-200 rounded-lg shadow-md z-30 py-1 text-xs">
+              <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-md z-30 py-1 text-xs">
                 <button
                   onClick={() => {
                     setOwnerFilter('all');
                     setOwnerDropdownOpen(false);
                   }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700 font-medium"
+                  className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium cursor-pointer"
                 >
                   All owners
                 </button>
@@ -191,7 +191,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                       setOwnerFilter(owner);
                       setOwnerDropdownOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+                    className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 cursor-pointer"
                   >
                     {owner}
                   </button>
@@ -204,7 +204,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
           <div className="relative">
             <button
               onClick={() => setDateDropdownOpen(!dateDropdownOpen)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-700 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-750 transition-colors cursor-pointer"
             >
               <CalendarIcon className="w-3 h-3 text-neutral-400" />
               <span>{dateFilter === 'any' ? 'Any date' : dateFilter}</span>
@@ -212,7 +212,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
             </button>
 
             {dateDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-40 bg-white border border-neutral-200 rounded-lg shadow-md z-30 py-1 text-xs">
+              <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-md z-30 py-1 text-xs">
                 {['Any date', 'This week', 'This month', 'Next 30 days', 'Overdue only'].map(
                   (opt) => (
                     <button
@@ -221,7 +221,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                         setDateFilter(opt);
                         setDateDropdownOpen(false);
                       }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+                      className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 cursor-pointer"
                     >
                       {opt}
                     </button>
@@ -234,7 +234,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white border border-neutral-200/90 rounded-xl shadow-2xs overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-xl shadow-2xs overflow-hidden">
         {/* Table Title Bar */}
         <div
           onClick={() => {
@@ -243,13 +243,13 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
               onSelectCommitment(firstAttention);
             }
           }}
-          className="px-5 py-3.5 border-b border-neutral-100 flex items-center justify-between cursor-pointer hover:bg-neutral-50/70 transition-colors group"
+          className="px-5 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between cursor-pointer hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors group"
           title="Click to view commitment details"
         >
-          <h2 className="text-sm font-semibold text-neutral-900 group-hover:text-neutral-950 transition-colors">
+          <h2 className="text-sm font-semibold text-neutral-900 dark:text-white group-hover:text-neutral-950 dark:group-hover:text-neutral-200 transition-colors">
             {getSectionTitle()}
           </h2>
-          <span className="text-[11px] text-neutral-400 group-hover:text-neutral-600 font-normal transition-colors hidden sm:inline">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 font-normal transition-colors hidden sm:inline">
             Click any row to view details &rarr;
           </span>
         </div>
@@ -258,9 +258,9 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[550px]">
             <thead>
-              <tr className="border-b border-neutral-100 text-[11px] font-medium text-neutral-400 uppercase tracking-wider bg-neutral-50/50">
+              <tr className="border-b border-neutral-100 dark:border-neutral-800 text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider bg-neutral-50/50 dark:bg-neutral-800/40">
                 <th className="py-2.5 px-5 font-medium">
-                  <div className="flex items-center gap-1 cursor-pointer hover:text-neutral-700">
+                  <div className="flex items-center gap-1 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200">
                     <span>Commitment</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
@@ -268,7 +268,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                 <th className="py-2.5 px-4 font-medium">Customer</th>
                 <th className="py-2.5 px-4 font-medium">Owner</th>
                 <th className="py-2.5 px-4 font-medium">
-                  <div className="flex items-center gap-1 cursor-pointer hover:text-neutral-700">
+                  <div className="flex items-center gap-1 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200">
                     <span>Promised by</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
@@ -276,10 +276,10 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                 <th className="py-2.5 px-5 font-medium text-right sm:text-left">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 text-xs sm:text-sm">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs sm:text-sm">
               {filteredCommitments.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-neutral-400 text-xs">
+                  <td colSpan={5} className="py-8 text-center text-neutral-400 dark:text-neutral-500 text-xs">
                     No commitments found for this filter.
                   </td>
                 </tr>
@@ -292,8 +292,8 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                       onClick={() => onSelectCommitment(comm)}
                       className={`transition-colors cursor-pointer group ${
                         isSelected
-                          ? 'bg-neutral-100/90 border-l-4 border-l-neutral-900'
-                          : 'hover:bg-neutral-50/80'
+                          ? 'bg-neutral-100/90 dark:bg-neutral-800/90 border-l-4 border-l-neutral-900 dark:border-l-white'
+                          : 'hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40'
                       }`}
                     >
                       {/* Commitment Title */}
@@ -301,12 +301,12 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                         <div className="flex items-center gap-2.5">
                           <FileText
                             className={`w-4 h-4 shrink-0 ${
-                              isSelected ? 'text-neutral-900' : 'text-neutral-400 group-hover:text-neutral-600'
+                              isSelected ? 'text-neutral-900 dark:text-white' : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
                             }`}
                           />
                           <span
                             className={`font-medium ${
-                              isSelected ? 'text-neutral-950 font-bold' : 'text-neutral-900'
+                              isSelected ? 'text-neutral-950 dark:text-white font-bold' : 'text-neutral-900 dark:text-neutral-100'
                             }`}
                           >
                             {comm.title}
@@ -315,24 +315,24 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                       </td>
 
                       {/* Customer Name */}
-                      <td className="py-3 px-4 text-neutral-600">{comm.customer}</td>
+                      <td className="py-3 px-4 text-neutral-600 dark:text-neutral-400">{comm.customer}</td>
 
                       {/* Owner Initials Avatar & First Name */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <div
                             className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                              comm.owner.avatarColor || 'bg-neutral-100 text-neutral-700'
+                              comm.owner.avatarColor || 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
                             }`}
                           >
                             {comm.owner.initials}
                           </div>
-                          <span className="text-neutral-700">{comm.owner.name.split(' ')[0]}</span>
+                          <span className="text-neutral-700 dark:text-neutral-300">{comm.owner.name.split(' ')[0]}</span>
                         </div>
                       </td>
 
                       {/* Promised by Date */}
-                      <td className="py-3 px-4 text-neutral-600 whitespace-nowrap">
+                      <td className="py-3 px-4 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
                         {comm.promisedBy}
                       </td>
 
@@ -340,7 +340,7 @@ export const CommitmentsTable: React.FC<CommitmentsTableProps> = ({
                       <td className="py-3 px-5 text-right sm:text-left whitespace-nowrap">
                         <div className="flex items-center justify-between gap-2">
                           {renderStatusBadge(comm.status, comm.statusLabel)}
-                          <ChevronRight className="w-3.5 h-3.5 text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline" />
+                          <ChevronRight className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline" />
                         </div>
                       </td>
                     </tr>

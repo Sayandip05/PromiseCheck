@@ -57,16 +57,24 @@ export default function App() {
   const [isDraftUpdateOpen, setIsDraftUpdateOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
 
-  // Landing page state
-  const [darkMode, setDarkMode] = useState(false);
+  // Full application theme state (white / black)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('promisecheck-theme');
+      if (saved) return saved === 'dark';
+    }
+    return false;
+  });
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
 
   React.useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('promisecheck-theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('promisecheck-theme', 'light');
     }
   }, [darkMode]);
 
@@ -262,6 +270,8 @@ export default function App() {
         onSwitchWorkspace={setWorkspace}
         reviewCount={unreviewedCount}
         onSignOut={() => setAppMode('landing')}
+        darkMode={darkMode}
+        onToggleTheme={() => setDarkMode(!darkMode)}
       />
 
       {/* Main Content Area Card with Rounded Upper Corner (Goes all the way to the bottom) */}
@@ -269,6 +279,9 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-neutral-900 rounded-none md:rounded-tl-2xl border-0 md:border-t md:border-l md:border-r border-neutral-200/90 dark:border-neutral-800 overflow-hidden shadow-2xs h-full min-h-0">
           <DashboardNavbar
             workspaceName={workspace.name}
+            darkMode={darkMode}
+            onToggleTheme={() => setDarkMode(!darkMode)}
+            onSetTheme={(isDark) => setDarkMode(isDark)}
             onNavigateLanding={() => setAppMode('landing')}
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />

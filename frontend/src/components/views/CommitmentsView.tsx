@@ -136,7 +136,7 @@ export const CommitmentsView: React.FC<CommitmentsViewProps> = ({
             onClick={onCloseDetail}
           />
           {/* Drawer Container on the right */}
-          <div className="fixed inset-y-0 right-0 max-w-full sm:max-w-md w-full bg-white shadow-2xl z-50 flex flex-col animate-slide-in-right duration-300 border-l border-neutral-200">
+          <div className="fixed inset-y-0 right-0 max-w-full sm:max-w-md w-full bg-white dark:bg-neutral-900 shadow-2xl z-50 flex flex-col animate-slide-in-right duration-300 border-l border-neutral-200 dark:border-neutral-800">
             <CommitmentDetailPanel
               commitment={selectedCommitment}
               onClose={onCloseDetail}

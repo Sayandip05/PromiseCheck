@@ -74,16 +74,16 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/50 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white rounded-none max-w-md w-full border border-neutral-200 shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl max-w-md w-full border border-neutral-200 dark:border-neutral-800 shadow-xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 bg-neutral-50/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-850/50">
           <div>
-            <h3 className="text-base font-bold text-neutral-900">Add commitment</h3>
-            <p className="text-xs text-neutral-500">Record a new verified customer promise</p>
+            <h3 className="text-base font-bold text-neutral-900 dark:text-white">Add commitment</h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">Record a new verified customer promise</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+            className="p-1 rounded-lg text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -92,24 +92,24 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">Commitment Title</label>
+            <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Commitment Title</label>
             <input
               type="text"
               required
               placeholder="e.g. Enable SSO, Deliver SOC2 Report"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900"
+              className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 focus:border-neutral-900 dark:focus:border-neutral-500"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-neutral-700">Customer</label>
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Customer</label>
               <select
                 value={customer}
                 onChange={(e) => setCustomer(e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900"
+                className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 focus:border-neutral-900 dark:focus:border-neutral-500"
               >
                 <option value="Acme">Acme</option>
                 <option value="Northstar">Northstar</option>
@@ -119,11 +119,11 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-neutral-700">Owner</label>
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Owner</label>
               <select
                 value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900"
+                className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 focus:border-neutral-900 dark:focus:border-neutral-500"
               >
                 <option value="Maya Chen">Maya Chen</option>
                 <option value="Daniel Stone">Daniel Stone</option>
@@ -135,18 +135,18 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-neutral-700">Promised Date</label>
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Promised Date</label>
               <input
                 type="date"
                 required
                 value={promisedDate}
                 onChange={(e) => setPromisedDate(e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900"
+                className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 focus:border-neutral-900 dark:focus:border-neutral-500"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-neutral-700">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 Jira / Linear Ticket (Optional)
               </label>
               <input
@@ -154,13 +154,13 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
                 placeholder="e.g. ENG-1042"
                 value={ticketId}
                 onChange={(e) => setTicketId(e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900"
+                className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 focus:border-neutral-900 dark:focus:border-neutral-500"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-neutral-700">
+            <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
               Original Promise Quote or Context
             </label>
             <textarea
@@ -168,7 +168,7 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
               placeholder="Quote or agreement from meeting..."
               value={quote}
               onChange={(e) => setQuote(e.target.value)}
-              className="w-full text-xs p-3 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900"
+              className="w-full text-xs p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 focus:border-neutral-900 dark:focus:border-neutral-500"
             />
           </div>
 
@@ -177,13 +177,13 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
+              className="px-4 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg transition-all shadow-xs cursor-pointer active:scale-98"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-200 text-white dark:text-neutral-900 rounded-lg transition-all shadow-xs cursor-pointer active:scale-98"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create commitment</span>

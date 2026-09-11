@@ -39,20 +39,20 @@ export const AuditLogView: React.FC = () => {
 
   return (
     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-6xl mx-auto w-full">
-      <div className="pb-6 border-b border-neutral-200">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
+      <div className="pb-6 border-b border-neutral-200 dark:border-neutral-800">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 dark:text-white">
           Immutable Audit Log
         </h1>
-        <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+        <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
           Cryptographically recorded log of approvals, outbound updates, and permission checks.
         </p>
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-2xs mt-6">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden shadow-2xs mt-6">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-neutral-100 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider bg-neutral-50/50">
+              <tr className="border-b border-neutral-100 dark:border-neutral-800 text-[11px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider bg-neutral-50/50 dark:bg-neutral-800/40">
                 <th className="py-3 px-5">Actor</th>
                 <th className="py-3 px-4">Action</th>
                 <th className="py-3 px-4">Details</th>
@@ -60,22 +60,22 @@ export const AuditLogView: React.FC = () => {
                 <th className="py-3 px-5 text-right">Origin</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {auditEntries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-neutral-50/70 transition-colors">
-                  <td className="py-3.5 px-5 font-semibold text-neutral-900 whitespace-nowrap">
+                <tr key={entry.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors">
+                  <td className="py-3.5 px-5 font-semibold text-neutral-900 dark:text-white whitespace-nowrap">
                     {entry.actor}
                   </td>
-                  <td className="py-3.5 px-4 font-medium text-neutral-900 whitespace-nowrap">
+                  <td className="py-3.5 px-4 font-medium text-neutral-900 dark:text-white whitespace-nowrap">
                     {entry.action}
                   </td>
-                  <td className="py-3.5 px-4 text-neutral-600 max-w-xs sm:max-w-sm truncate">
+                  <td className="py-3.5 px-4 text-neutral-600 dark:text-neutral-300 max-w-xs sm:max-w-sm truncate">
                     {entry.details}
                   </td>
-                  <td className="py-3.5 px-4 text-neutral-400 whitespace-nowrap">
+                  <td className="py-3.5 px-4 text-neutral-400 dark:text-neutral-500 whitespace-nowrap">
                     {entry.timestamp}
                   </td>
-                  <td className="py-3.5 px-5 text-neutral-400 font-mono text-[11px] text-right whitespace-nowrap">
+                  <td className="py-3.5 px-5 text-neutral-400 dark:text-neutral-500 font-mono text-[11px] text-right whitespace-nowrap">
                     {entry.ip}
                   </td>
                 </tr>

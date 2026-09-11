@@ -52,7 +52,7 @@ export const ACCOUNTS: CustomerAccount[] = [
     id: 'oceanview',
     name: 'OceanView Enterprises Ltd.',
     status: 'review',
-    statusColor: '#6366f1', // indigo
+    statusColor: '#525252', // neutral gray
     activePromises: 4,
     healthScore: 89,
     recentPromise: 'Single Sign-On SAML Multi-domain',

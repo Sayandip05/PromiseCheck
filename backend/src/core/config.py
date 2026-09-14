@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """Central application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -45,25 +45,29 @@ class Settings(BaseSettings):
             return [str(origin).strip() for origin in v]
         return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    # 3. Security & Sessions
-    SESSION_SIGNING_KEY: str = "dev-insecure-secret-key-change-me-32chars"
-    SESSION_COOKIE_NAME: str = "promisecheck_session"
-    SESSION_MAX_AGE_SECONDS: int = 604800  # 7 days
+    # 3. Security, JWT & Tokens
+    SECRET_KEY: str = ""
+    JWT_SECRET_KEY: str = ""
+    SESSION_SIGNING_KEY: str = ""
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    REFRESH_COOKIE_NAME: str = "promisecheck_refresh"
+    ACCESS_COOKIE_NAME: str = "promisecheck_access"
+    COOKIE_SECURE: bool = False
+    COOKIE_SAMESITE: str = "lax"
+    GOOGLE_CLIENT_ID: str = ""
 
     # 4. Database & Cache
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/promisecheck"
-    DATABASE_SYNC_URL: str = "postgresql://postgres:postgres@localhost:5432/promisecheck"
-    REDIS_URL: str = "redis://localhost:6379/0"
+    DATABASE_URL: str = ""
+    DATABASE_SYNC_URL: str = ""
+    REDIS_URL: str = ""
 
-    # 5. Object Storage (S3 / MinIO)
-    OBJECT_STORAGE_ENDPOINT: str = "http://localhost:9000"
-    OBJECT_STORAGE_BUCKET: str = "promisecheck-artifacts"
-    OBJECT_STORAGE_ACCESS_KEY: str = "minioadmin"
-    OBJECT_STORAGE_SECRET_KEY: str = "minioadmin"
-
-    # 6. AI & Language Models
-    LLM_PROVIDER: str = "anthropic"
-    LLM_MODEL: str = "claude-3-5-sonnet-latest"
+    # 5. AI, Groq & Extraction
+    GROQ_API_KEY: str = ""
+    LLM_PROVIDER: str = "groq"
+    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    GEMINI_API_KEY: str = ""
     LLM_API_KEY: str = ""
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     AI_RUN_COST_LIMIT: float = 1.00
@@ -72,9 +76,11 @@ class Settings(BaseSettings):
     def validate_production_safety(self) -> "Settings":
         """Enforce strict production safety checks."""
         if self.APP_ENV.lower() == "production":
+            sec_key = self.SESSION_SIGNING_KEY if self.SESSION_SIGNING_KEY else self.JWT_SECRET_KEY
             if (
-                self.SESSION_SIGNING_KEY == "dev-insecure-secret-key-change-me-32chars"
-                or len(self.SESSION_SIGNING_KEY) < 32
+                not sec_key
+                or sec_key in ("dev-insecure-secret-key-change-me-32chars", "dev-insecure-jwt-secret-key-change-me-32chars")
+                or len(sec_key) < 32
             ):
                 raise ValueError(
                     "Unsafe production default: SESSION_SIGNING_KEY must be a secure "

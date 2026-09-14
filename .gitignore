@@ -44,3 +44,8 @@ ENV/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3

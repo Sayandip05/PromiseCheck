@@ -1,12 +1,25 @@
 import React from 'react';
 import { Users, FileText, ArrowRight, ShieldCheck, Building2 } from 'lucide-react';
 import { ACCOUNTS } from '../../data/mockData';
+import { api } from '../../lib/api';
 
 interface CustomersViewProps {
   onSelectCustomer?: (customerName: string) => void;
 }
 
 export const CustomersView: React.FC<CustomersViewProps> = ({ onSelectCustomer }) => {
+  const [accounts, setAccounts] = React.useState(ACCOUNTS);
+
+  React.useEffect(() => {
+    api.customers.list()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAccounts(data as any);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-6xl mx-auto w-full">
       <div className="pb-6 border-b border-neutral-200 dark:border-neutral-800">
@@ -19,7 +32,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onSelectCustomer }
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-        {ACCOUNTS.map((acc) => (
+        {accounts.map((acc) => (
           <div
             key={acc.id}
             onClick={() => onSelectCustomer && onSelectCustomer(acc.name)}

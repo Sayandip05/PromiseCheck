@@ -33,14 +33,31 @@ import {
 } from './data/dashboardData';
 import { Commitment, DashboardView, Workspace } from './types/dashboard';
 import { LayoutDashboard, Globe } from 'lucide-react';
+import { useAuth } from './contexts/AuthContext';
+import { api } from './lib/api';
+import { useRealtimeEvents } from './hooks/useRealtimeEvents';
 
 export default function App() {
+  const { user, activeWorkspace, logout } = useAuth();
+
   // Mode defaults to 'landing' so http://localhost:3000/ opens the landing page first
   const [appMode, setAppMode] = useState<'dashboard' | 'landing'>('landing');
 
   // Dashboard state
   const [currentView, setCurrentView] = useState<DashboardView>('commitments');
   const [workspace, setWorkspace] = useState<Workspace>(CURRENT_WORKSPACE);
+
+  // Sync workspace from authenticated session
+  React.useEffect(() => {
+    if (activeWorkspace) {
+      setWorkspace((prev) => ({
+        ...prev,
+        id: activeWorkspace.id,
+        name: activeWorkspace.name,
+      }));
+    }
+  }, [activeWorkspace]);
+
   const [commitments, setCommitments] = useState<Commitment[]>(INITIAL_COMMITMENTS);
   const [selectedCommitmentId, setSelectedCommitmentId] = useState<string>('comm-1');
   const [activeTab, setActiveTab] = useState<string>('needs-attention');
@@ -78,7 +95,53 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Toast notification state
+  // Fetch live backend commitments, integrations, and activity logs
+  React.useEffect(() => {
+    if (appMode === 'dashboard') {
+      api.commitments.list()
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setCommitments(data as Commitment[]);
+            if (data[0]?.id) setSelectedCommitmentId(data[0].id);
+          }
+        })
+        .catch(() => {});
+
+      api.integrations.list()
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setIntegrations(data);
+          }
+        })
+        .catch(() => {});
+
+      api.audit.list()
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setActivities(data as any);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [appMode]);
+
+  const refreshData = React.useCallback(() => {
+    api.commitments.list()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCommitments(data as Commitment[]);
+        }
+      })
+      .catch(() => {});
+    api.audit.list()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setActivities(data as any);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -87,6 +150,21 @@ export default function App() {
       setToastMessage(null);
     }, 4000);
   };
+
+  // Real-time updates pushed from Redis Pub/Sub through Server-Sent Events (SSE)
+  useRealtimeEvents(
+    React.useCallback((event) => {
+      if (event.type === 'INGESTION_COMPLETED') {
+        showToast('New commitment candidate extracted and queued for review.');
+        refreshData();
+      } else if (event.type === 'COMMITMENT_CONFIRMED') {
+        showToast('Commitment confirmed into active tracking.');
+        refreshData();
+      } else if (event.type === 'RISK_EVALUATION_COMPLETED') {
+        refreshData();
+      }
+    }, [refreshData])
+  );
 
   const selectedCommitment =
     commitments.find((c) => c.id === selectedCommitmentId) || commitments[0] || null;
@@ -97,7 +175,23 @@ export default function App() {
     setIsDetailOpen(true);
   };
 
-  const handleAddCommitment = (newComm: Partial<Commitment>) => {
+  const handleAddCommitment = async (newComm: Partial<Commitment>) => {
+    try {
+      const created = await api.commitments.create({
+        title: newComm.title || 'Untitled Commitment',
+        customer: newComm.customer || 'Acme',
+        promised_by: newComm.promisedBy || 'Oct 15, 2026',
+        promised_date_iso: newComm.promisedDateIso || '2026-10-15',
+        quote: newComm.originalPromise?.quote || 'Manually logged customer commitment',
+      });
+      if (created?.id) {
+        setCommitments((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+        setSelectedCommitmentId(created.id);
+        showToast(`Created commitment "${created.title}"`);
+        return;
+      }
+    } catch {}
+
     const created: Commitment = {
       id: newComm.id || `comm-${Date.now()}`,
       title: newComm.title || 'Untitled Commitment',
@@ -126,7 +220,23 @@ export default function App() {
     showToast(`Created commitment "${created.title}"`);
   };
 
-  const handleTranscriptUploaded = (data: { customer: string; meetingTitle: string; quote: string }) => {
+  const handleTranscriptUploaded = async (data: { customer: string; meetingTitle: string; quote: string }) => {
+    try {
+      await api.ingestion.upload({
+        customer: data.customer,
+        meeting_title: data.meetingTitle,
+        transcript_text: data.quote,
+      });
+      const liveList = await api.commitments.list();
+      if (Array.isArray(liveList) && liveList.length > 0) {
+        setCommitments(liveList as Commitment[]);
+        if (liveList[0]?.id) setSelectedCommitmentId(liveList[0].id);
+        setCurrentView('review-queue');
+        showToast('Transcript parsed! 1 new candidate promise awaiting review.');
+        return;
+      }
+    } catch {}
+
     const extracted: Commitment = {
       id: `comm-${Date.now()}`,
       title: 'Sandbox Testing & Webhook Deployment',
@@ -159,7 +269,10 @@ export default function App() {
     showToast(`Transcript parsed! 1 new candidate promise awaiting review.`);
   };
 
-  const handleConfirmCommitment = (id: string) => {
+  const handleConfirmCommitment = async (id: string) => {
+    try {
+      await api.commitments.confirm(id);
+    } catch {}
     setCommitments(
       commitments.map((c) =>
         c.id === id
@@ -269,9 +382,13 @@ export default function App() {
         currentWorkspace={workspace}
         onSwitchWorkspace={setWorkspace}
         reviewCount={unreviewedCount}
-        onSignOut={() => setAppMode('landing')}
+        onSignOut={async () => {
+          await logout();
+          setAppMode('landing');
+        }}
         darkMode={darkMode}
         onToggleTheme={() => setDarkMode(!darkMode)}
+        user={user}
       />
 
       {/* Main Content Area Card with Rounded Upper Corner (Goes all the way to the bottom) */}

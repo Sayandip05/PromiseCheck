@@ -28,6 +28,7 @@ interface SidebarProps {
   onSignOut: () => void;
   darkMode?: boolean;
   onToggleTheme?: () => void;
+  user?: { full_name?: string | null; name?: string | null; email?: string } | null;
 }
 
 export const Logo = () => {
@@ -88,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSignOut,
   darkMode = false,
   onToggleTheme,
+  user,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -196,17 +198,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          <SidebarLink
-            link={{
-              label: 'Workspace Admin',
-              icon: (
-                <div className="h-7 w-7 rounded-full bg-neutral-900 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
-                  WA
-                </div>
-              ),
-              onClick: () => handleNavClick('settings'),
-            }}
-          />
+          {(() => {
+            const displayName = user?.full_name || user?.name || user?.email || 'Workspace Admin';
+            const initials = (user?.full_name || user?.name)
+              ? (user.full_name || user.name || '')
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((n) => n[0])
+                  .join('')
+                  .slice(0, 2)
+              : user?.email
+              ? user.email.slice(0, 2)
+              : 'WA';
+
+            return (
+              <SidebarLink
+                link={{
+                  label: displayName,
+                  icon: (
+                    <div className="h-7 w-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center font-bold text-[11px] shrink-0 uppercase">
+                      {initials}
+                    </div>
+                  ),
+                  onClick: () => handleNavClick('settings'),
+                }}
+              />
+            );
+          })()}
 
           <SidebarLink
             link={{

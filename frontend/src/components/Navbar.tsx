@@ -12,6 +12,7 @@ import {
   Sparkles,
   ArrowRight
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -28,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onScrollTo,
   onOpenDashboard,
 }) => {
+  const { user, isAuthenticated } = useAuth();
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -184,27 +186,43 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action Items: Login button + Theme Toggle */}
         <div className="flex items-center gap-3">
-          {onOpenDashboard && (
+          {isAuthenticated && user ? (
             <button
+              id="nav-user-dashboard-btn"
               onClick={onOpenDashboard}
-              className="inline-flex items-center gap-1.5 font-semibold text-xs sm:text-sm px-3.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-all shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-2 font-medium text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-all shadow-xs cursor-pointer"
             >
-              <span>Dashboard</span>
+              <div className="w-5 h-5 rounded-full bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 flex items-center justify-center font-bold text-[10px] uppercase">
+                {user.full_name ? user.full_name[0] : user.email[0]}
+              </div>
+              <span className="hidden sm:inline max-w-[130px] truncate">{user.full_name || user.email}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
-          )}
+          ) : (
+            <>
+              {onOpenDashboard && (
+                <button
+                  onClick={onOpenDashboard}
+                  className="hidden sm:inline-flex items-center gap-1.5 font-semibold text-xs sm:text-sm px-3.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-all shadow-xs cursor-pointer"
+                >
+                  <span>Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
 
-          <button
-            id="nav-login-btn"
-            onClick={() => onOpenLogin('login')}
-            className={`font-medium text-sm px-4 py-1.5 rounded-lg transition-all cursor-pointer ${
-              darkMode 
-                ? 'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700' 
-                : 'bg-[#e5e7eb] hover:bg-[#d8dadf] text-neutral-900'
-            }`}
-          >
-            Login
-          </button>
+              <button
+                id="nav-login-btn"
+                onClick={() => onOpenLogin('login')}
+                className={`font-medium text-sm px-4 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  darkMode 
+                    ? 'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700' 
+                    : 'bg-[#e5e7eb] hover:bg-[#d8dadf] text-neutral-900'
+                }`}
+              >
+                Login
+              </button>
+            </>
+          )}
 
           {/* Theme Toggle Sun/Moon Button */}
           <button

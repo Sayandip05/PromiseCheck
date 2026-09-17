@@ -3,11 +3,16 @@
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.database import get_db
-from core.security import get_current_user
+from core.security import (
+    bearer_scheme,
+    blacklist_access_token,
+    get_current_user,
+)
 from modules.identity.models import User
 from modules.identity.schemas import (
     GoogleAuthRequest,
@@ -182,12 +187,25 @@ async def logout(
     response: Response,
     payload: Optional[RefreshTokenRequest] = None,
     cookie_refresh: Optional[str] = Cookie(default=None, alias=settings.REFRESH_COOKIE_NAME),
+    cookie_access: Optional[str] = Cookie(default=None, alias=settings.ACCESS_COOKIE_NAME),
+    bearer_auth: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    """Revoke refresh token and clear all auth cookies."""
+    """Revoke refresh token, blacklist access token, and clear all auth cookies.
+
+    Fix #12: Extracts the current access token from Bearer header or cookie and
+    blacklists its JTI in Redis with the remaining TTL. Any attempt to replay
+    this token after logout will receive 401 'Token has been revoked'.
+    """
     raw_token = (payload.refresh_token if payload and payload.refresh_token else None) or cookie_refresh
     if raw_token:
         await AuthService.revoke_refresh_token(db, raw_token)
+
+    # Blacklist the active access token so it cannot be replayed post-logout
+    access_token = (bearer_auth.credentials if bearer_auth else None) or cookie_access
+    if access_token:
+        await blacklist_access_token(access_token)
+
     _clear_token_cookies(response)
     return {"status": "logged_out"}
 

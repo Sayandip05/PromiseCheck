@@ -8,18 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, status, File, Form, Uploa
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai.extractor import PromiseExtractor
 from connectors.speech_to_text import SpeechToTextConnector
 from core.database import get_db
 from core.redis import publish_event, set_with_ttl
 from core.security import get_current_user, get_current_user_optional
-from modules.commitments.models import Commitment
-from modules.commitments.router import _to_dto
+from jobs.tasks import process_transcript_ingestion
 from modules.identity.models import User
-from modules.workspaces.service import get_active_workspace_id
-from sqlalchemy import desc, select
 from modules.audit.service import record_audit_event
 from modules.ingestion.models import IngestionJob
+from modules.workspaces.service import get_active_workspace_id
+from sqlalchemy import desc, select
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion & Capture"])
 
@@ -89,13 +87,20 @@ async def list_ingest_jobs(
     ]
 
 
-@router.post("/upload", response_model=IngestJobResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", response_model=IngestJobResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_transcript(
     payload: UploadTranscriptRequest,
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Upload meeting transcript, extract commitments using Groq LLM, and queue for human review."""
+    """Upload meeting transcript and dispatch to Celery for async AI extraction.
+
+    Fix #10: Previously called extractor.extract_candidates() directly inside the
+    HTTP handler, blocking a Uvicorn worker for 2-10s per upload (Groq LLM latency).
+    Now returns 202 Accepted immediately. The Celery worker runs extraction +
+    commitment persistence + SSE INGESTION_COMPLETED event asynchronously.
+    Clients should listen on the SSE stream for real-time job completion notification.
+    """
     ws_id = await get_active_workspace_id(db, user)
 
     text_to_process = payload.transcript_text.strip()
@@ -107,59 +112,19 @@ async def upload_transcript(
             f"The client agreed this was their primary blocker for production migration."
         )
 
-    extractor = PromiseExtractor()
-    extracted_candidates = await extractor.extract_candidates(text_to_process)
-
-    created_commitments = []
     job_id = f"job-up-{uuid.uuid4().hex[:8]}"
 
-    for cand in extracted_candidates:
-        title = cand.get("title", "Review discussed deliverable")
-        quote = cand.get("quote", text_to_process[:150])
-        customer_name = cand.get("customer") or payload.customer
-        promised_by = cand.get("promised_by", "Upcoming")
-        promised_iso = cand.get("promised_date_iso", "")
-
-        commitment = Commitment(
-            workspace_id=ws_id,
-            title=title,
-            customer_name=customer_name,
-            owner_name=user.full_name if user else "Lead Engineer",
-            owner_email=user.email if user else "lead@acme.corp",
-            promised_by=promised_by,
-            promised_date_iso=promised_iso,
-            status="awaiting-review",
-            status_label="Awaiting review",
-            is_confirmed=False,
-            category="awaiting-review",
-            quote=quote,
-            original_promise_json={
-                "quote": quote,
-                "sourceTitle": payload.meeting_title,
-                "timestamp": datetime.now(timezone.utc).strftime("%b %d · %H:%M"),
-                "transcriptId": job_id,
-            },
-            engineering_evidence_json={},
-            risk_json={"hasConflict": False},
-            recommended_step_json={
-                "text": "Review candidate promise extracted by AI.",
-                "actionType": "review",
-            },
-        )
-        db.add(commitment)
-        created_commitments.append(cand)
-
-    # Persist IngestionJob entity in database
+    # Persist IngestionJob entity immediately as 'queued'
     db_job = IngestionJob(
         workspace_id=ws_id,
         job_id=job_id,
         customer_name=payload.customer,
         meeting_title=payload.meeting_title,
         source_type=payload.source_type,
-        status="completed",
-        candidates_extracted=len(created_commitments),
+        status="queued",
+        candidates_extracted=0,
         transcript_preview=text_to_process[:300],
-        candidates_json=created_commitments,
+        candidates_json=[],
     )
     db.add(db_job)
 
@@ -168,39 +133,45 @@ async def upload_transcript(
         db=db,
         workspace_id=ws_id,
         actor_id=user.id if user else ws_id,
-        action="TRANSCRIPT_INGESTED",
+        action="TRANSCRIPT_QUEUED",
         target_type="ingestion_job",
         target_id=job_id,
-        description=f"Extracted {len(created_commitments)} candidates from {payload.meeting_title} ({payload.customer}).",
-        payload={"source_type": payload.source_type, "candidates_count": len(created_commitments)},
+        description=f"Queued transcript ingestion for {payload.meeting_title} ({payload.customer}).",
+        payload={"source_type": payload.source_type},
     )
-
     await db.commit()
 
-    job_result = IngestJobResponse(
+    # Cache queued status in Redis (24h TTL)
+    await set_with_ttl(f"job:{job_id}", {"status": "queued", "job_id": job_id}, ttl_seconds=86400)
+
+    # Dispatch Celery task — returns in microseconds, worker handles LLM + DB + SSE
+    process_transcript_ingestion.delay(
         job_id=job_id,
-        source_type=payload.source_type,
-        status="completed",
-        candidates_extracted=len(created_commitments),
-        candidates=created_commitments,
+        workspace_id=str(ws_id),
+        transcript_text=text_to_process,
+        customer_name=payload.customer,
+        meeting_title=payload.meeting_title,
     )
 
-    # 1. Cache job state in Redis with 24-hour TTL (auto-expires)
-    await set_with_ttl(f"job:{job_id}", job_result.model_dump(), ttl_seconds=86400)
-
-    # 2. Publish real-time event to workspace Pub/Sub channel
+    # Notify SSE subscribers that processing has started
     await publish_event(
         f"ws:{ws_id}:events",
-        "INGESTION_COMPLETED",
+        "INGESTION_QUEUED",
         {
             "job_id": job_id,
-            "candidates_count": len(created_commitments),
             "customer": payload.customer,
             "meeting_title": payload.meeting_title,
+            "message": "Extraction in progress. You will be notified when complete.",
         },
     )
 
-    return job_result
+    return IngestJobResponse(
+        job_id=job_id,
+        source_type=payload.source_type,
+        status="queued",
+        candidates_extracted=0,
+        candidates=[],
+    )
 
 
 @router.post("/upload-audio", response_model=IngestJobResponse, status_code=status.HTTP_201_CREATED)

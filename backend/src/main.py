@@ -8,7 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 __version__ = "0.1.0"
 from core.config import settings
-from core.database import async_engine, check_database_health
+from core.database import Base, async_engine, check_database_health
+import modules.identity.models  # noqa: F401
+import modules.workspaces.models  # noqa: F401
+import modules.commitments.models  # noqa: F401
+import modules.customers.models  # noqa: F401
+import modules.ingestion.models  # noqa: F401
+import modules.delivery.models  # noqa: F401
 from core.logging import get_logger, setup_logging
 from jobs.celery_app import check_redis_health
 
@@ -22,8 +28,11 @@ from modules.identity.router import router as identity_router
 from modules.ingestion.router import router as ingestion_router
 from modules.notifications.router import router as notifications_router
 from modules.operations.router import router as operations_router
+from modules.operations.integrations_router import router as integrations_router
 from modules.risk.router import router as risk_router
 from modules.workspaces.router import router as workspaces_router
+from modules.mcp.server import mcp_router
+from modules.realtime.router import router as realtime_router
 
 logger = get_logger("promisecheck.app")
 
@@ -33,6 +42,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Graceful startup and shutdown lifecycle management (Twelve-Factor Factor IX)."""
     setup_logging()
     logger.info(f"Starting PromiseCheck v{__version__} in '{settings.APP_ENV}' mode")
+    try:
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema initialized successfully.")
+    except Exception as exc:
+        logger.warning(f"Database schema auto-init warning: {exc}")
     yield
     logger.info("Initiating graceful shutdown...")
     await async_engine.dispose()
@@ -47,6 +62,11 @@ app = FastAPI(
     docs_url="/docs" if settings.APP_ENV != "production" else None,
     redoc_url="/redoc" if settings.APP_ENV != "production" else None,
 )
+
+from core.middleware import register_middleware
+
+# Register defense-in-depth security headers, rate limiting, and request tracing
+register_middleware(app)
 
 # Dynamic CORS Middleware from Twelve-Factor external configuration
 app.add_middleware(
@@ -99,6 +119,9 @@ app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(operations_router, prefix="/api/v1")
+app.include_router(integrations_router, prefix="/api/v1")
+app.include_router(mcp_router, prefix="/api/v1")
+app.include_router(realtime_router, prefix="/api/v1")
 
 
 def run() -> None:

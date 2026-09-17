@@ -58,6 +58,44 @@ class PromiseExtractor:
         # 2. Deterministic NLP regex fallback
         return self._deterministic_extract(transcript_text)
 
+    def extract_candidates_sync(
+        self,
+        transcript_text: str,
+        meeting_title: str = "Meeting Sync",
+        default_customer: str = "Acme",
+    ) -> list[dict[str, Any]]:
+        """Synchronous commitment extractor for Celery worker context.
+
+        Calls generate_sync() (blocking httpx.Client) rather than creating a
+        nested asyncio event loop with asyncio.run(). Falls back to the
+        deterministic NLP extractor if the LLM call fails or no key is set.
+        """
+        if not transcript_text or not transcript_text.strip():
+            return []
+
+        prompt = (
+            f"Transcript Content:\n\"\"\"\n{transcript_text[:4000]}\n\"\"\"\n\n"
+            "Extract all customer commitments as JSON array."
+        )
+        try:
+            raw_response = self.client.generate_sync(prompt, system_prompt=SYSTEM_PROMPT)
+            if raw_response:
+                clean = raw_response.strip()
+                if clean.startswith("```json"):
+                    clean = clean[7:]
+                if clean.startswith("```"):
+                    clean = clean[3:]
+                if clean.endswith("```"):
+                    clean = clean[:-3]
+                parsed = json.loads(clean.strip())
+                if isinstance(parsed, list) and len(parsed) > 0:
+                    logger.info(f"[Celery] Groq sync extracted {len(parsed)} commitments")
+                    return parsed
+        except Exception as err:
+            logger.warning(f"[Celery] Sync LLM extraction failed: {err}. Using NLP fallback.")
+
+        return self._deterministic_extract(transcript_text)
+
     def _deterministic_extract(self, text: str) -> list[dict[str, Any]]:
         """Fallback rule-based heuristic extractor for offline or fallback environments."""
         candidates: list[dict[str, Any]] = []

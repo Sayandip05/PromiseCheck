@@ -1,21 +1,43 @@
 """Shared background asynchronous tasks registered on the unified Celery app."""
 
-import asyncio
 import uuid
 from typing import Any
 
 from ai.extractor import PromiseExtractor
-from core.database import async_engine
 from core.logging import get_logger
 from core.redis import publish_event_sync, set_with_ttl_sync
 from jobs.celery_app import celery_app
 from modules.commitments.models import Commitment
 from sqlalchemy.orm import Session
-from sqlalchemy import select, create_engine
+from sqlalchemy import create_engine
 import os
 from core.config import settings
 
 logger = get_logger("celery_tasks")
+
+# ── Fix #1: Module-level singleton sync engine ───────────────────────────────
+# Previously create_engine() was called inside the task function body, spawning
+# a brand-new connection pool on EVERY task invocation. Under 100 concurrent
+# ingestion jobs this would create 100 engines, exhausting OS file descriptors
+# and RAM. The singleton is created once at worker startup and shared.
+_db_sync_url = (
+    settings.DATABASE_SYNC_URL
+    or os.getenv("DATABASE_SYNC_URL")
+    or "sqlite:///./promisecheck.db"
+)
+_sync_engine_kwargs: dict = {
+    "pool_pre_ping": True,   # validate stale connections before checkout
+    "pool_recycle": 1800,    # recycle connections after 30 min to avoid DB-side timeout drops
+}
+if "sqlite" in _db_sync_url:
+    # SQLite does not support pool_size / max_overflow
+    _sync_engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    # PostgreSQL: small bounded pool — Celery workers are long-lived processes
+    _sync_engine_kwargs["pool_size"] = 5
+    _sync_engine_kwargs["max_overflow"] = 10
+
+_sync_engine = create_engine(_db_sync_url, **_sync_engine_kwargs)
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30)
@@ -33,15 +55,16 @@ def process_transcript_ingestion(
     # 1. Update job status with 2-hour TTL in Redis
     set_with_ttl_sync(f"job:{job_id}", {"status": "processing", "progress": 10}, ttl_seconds=7200)
 
-    # 2. Extract commitments using Groq LLM
+    # 2. Fix #2: Use synchronous extractor — no asyncio.run() blocking.
+    # Previously asyncio.run() created a nested event loop inside the Celery
+    # thread and blocked it for the full LLM HTTP round-trip (2–10 seconds).
+    # extract_candidates_sync() uses httpx.Client (blocking) directly.
     extractor = PromiseExtractor()
     try:
-        candidates = asyncio.run(
-            extractor.extract_commitments(
-                transcript=transcript_text,
-                meeting_title=meeting_title,
-                default_customer=customer_name,
-            )
+        candidates = extractor.extract_candidates_sync(
+            transcript_text=transcript_text,
+            meeting_title=meeting_title,
+            default_customer=customer_name,
         )
     except Exception as exc:
         logger.error(f"[Celery Worker] Extraction failed for job {job_id}: {exc}")
@@ -53,11 +76,9 @@ def process_transcript_ingestion(
         )
         raise self.retry(exc=exc)
 
-    # 3. Synchronously persist candidate commitments to database
-    db_sync_url = settings.DATABASE_SYNC_URL or os.getenv("DATABASE_SYNC_URL") or "sqlite:///./promisecheck.db"
-    engine = create_engine(db_sync_url)
+    # 3. Persist candidate commitments using the singleton engine (Fix #1)
     created_count = 0
-    with Session(engine) as session:
+    with Session(_sync_engine) as session:
         for item in candidates:
             c = Commitment(
                 workspace_id=uuid.UUID(workspace_id),

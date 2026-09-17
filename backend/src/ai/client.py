@@ -85,3 +85,60 @@ class AIClient:
         # 3. Deterministic local extractor fallback
         logger.info("Using local deterministic AI fallback")
         return ""
+
+    def generate_sync(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Blocking HTTP call for Celery worker context (no asyncio event loop).
+
+        Uses httpx.Client (synchronous) to call Groq or Gemini. Falls back to
+        an empty string, which causes PromiseExtractor to use the NLP fallback.
+        """
+        # 1. Primary: Groq API (synchronous)
+        if self.groq_api_key:
+            try:
+                logger.info(f"[Celery] Calling Groq LLM (sync) with model: {self.model}")
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": prompt})
+
+                with httpx.Client(timeout=30.0) as client:
+                    response = client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.groq_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": 0.1,
+                            "max_tokens": 1500,
+                        },
+                    )
+                    if response.status_code == 200:
+                        return response.json()["choices"][0]["message"]["content"]
+                    else:
+                        logger.warning(
+                            f"[Celery] Groq API status {response.status_code}: {response.text}"
+                        )
+            except Exception as e:
+                logger.error(f"[Celery] Error calling Groq API (sync): {e}")
+
+        # 2. Fallback: Google Gemini API (synchronous)
+        if self.gemini_api_key:
+            try:
+                logger.info("[Celery] Falling back to Google Gemini Flash API (sync)")
+                url = (
+                    f"https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"gemini-1.5-flash:generateContent?key={self.gemini_api_key}"
+                )
+                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+                with httpx.Client(timeout=30.0) as client:
+                    response = client.post(url, json={"contents": [{"parts": [{"text": full_prompt}]}]})
+                    if response.status_code == 200:
+                        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:
+                logger.error(f"[Celery] Error calling Gemini API (sync): {e}")
+
+        logger.info("[Celery] Using local deterministic AI fallback (no API key available)")
+        return ""

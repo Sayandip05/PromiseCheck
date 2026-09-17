@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import Role
+from core.redis import delete_key, get_value, set_with_ttl
 from modules.identity.models import User
 from modules.workspaces.models import Membership, Workspace
 from modules.workspaces.schemas import WorkspaceCreateRequest
@@ -34,6 +35,9 @@ class WorkspaceService:
         db.add(membership)
         await db.commit()
         await db.refresh(workspace)
+
+        # Bust the workspace ID cache so the user gets the new workspace on next request
+        await invalidate_workspace_cache(user_id)
         return workspace
 
     @staticmethod
@@ -48,12 +52,38 @@ class WorkspaceService:
         return list(res.scalars().all())
 
 
+async def invalidate_workspace_cache(user_id: uuid.UUID) -> None:
+    """Bust the cached workspace ID for a user (call on workspace create/membership change)."""
+    try:
+        await delete_key(f"ws_id_cache:{user_id}")
+    except Exception:
+        pass  # Redis unavailable — no-op; cache will expire naturally
+
+
 async def get_active_workspace_id(db: AsyncSession, user: Optional[User] = None) -> uuid.UUID:
-    """Get active workspace ID or fallback to first existing workspace."""
+    """Get active workspace ID or fallback to first existing workspace.
+
+    Fix #7: Checks a Redis cache key (ws_id_cache:{user_id}, 5-min TTL) before
+    executing the membership DB query. At 1,000 RPS this previously caused 1,000
+    unnecessary DB reads/sec. Cache miss occurs only on first request after login
+    or workspace membership change.
+    """
     if user:
+        cache_key = f"ws_id_cache:{user.id}"
+        try:
+            cached = await get_value(cache_key)
+            if cached:
+                return uuid.UUID(cached)
+        except Exception:
+            pass  # Redis unavailable — proceed to DB lookup
+
         mem_res = await db.execute(select(Membership).where(Membership.user_id == user.id))
         mem = mem_res.scalar_one_or_none()
         if mem:
+            try:
+                await set_with_ttl(cache_key, str(mem.workspace_id), ttl_seconds=300)
+            except Exception:
+                pass  # Redis unavailable — no-op, just don't cache
             return mem.workspace_id
 
     ws_res = await db.execute(select(Workspace).limit(1))

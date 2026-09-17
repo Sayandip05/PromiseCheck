@@ -107,9 +107,6 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         "default": (120, 60),                # 120 requests / 60s
     }
 
-    # In-memory fallback tracking when Redis is not running
-    _in_memory_hits: dict[str, list[float]] = {}
-
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Skip health probes and SSE stream from rate limiting
         path = request.url.path
@@ -125,21 +122,26 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         rate_exceeded = False
         try:
             r = get_async_redis()
-            current_hits = await r.incr(key)
-            if current_hits == 1:
-                await r.expire(key, window_secs)
+            # Fix #4: Atomic pipeline — INCR and EXPIRE are sent in a single
+            # round-trip. expire(..., nx=True) sets the TTL only if it does NOT
+            # already exist, preventing the window from resetting on every hit.
+            # Previously the two-step INCR→EXPIRE had a race: concurrent requests
+            # could both INCR before either EXPIRE ran, leaving the key without a
+            # TTL and permanently banning the IP.
+            pipe = r.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, window_secs, nx=True)
+            results = await pipe.execute()
+            current_hits = results[0]
             if current_hits > max_reqs:
                 rate_exceeded = True
-        except Exception:
-            # Fallback to local sliding window
-            timestamps = self._in_memory_hits.setdefault(key, [])
-            # Prune old timestamps outside the current window
-            cutoff = current_time - window_secs
-            self._in_memory_hits[key] = [t for t in timestamps if t > cutoff]
-            if len(self._in_memory_hits[key]) >= max_reqs:
-                rate_exceeded = True
-            else:
-                self._in_memory_hits[key].append(current_time)
+        except Exception as redis_err:
+            # If Redis is unavailable, fail-open (let the request pass).
+            # The removed in-memory fallback was not safe across multiple Uvicorn
+            # worker processes — each had its own dict, allowing N× the limit.
+            logger.warning(
+                f"Rate limiter Redis unavailable (failing open) for {client_ip}: {redis_err}"
+            )
 
         if rate_exceeded:
             logger.warning(f"Rate limit exceeded for IP {client_ip} on {path}")

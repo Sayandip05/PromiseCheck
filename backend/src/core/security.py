@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import math
 import os
 import secrets
 import uuid
@@ -15,8 +16,10 @@ from fastapi import Cookie, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from core.config import settings
+from core.logging import get_logger
 
 bearer_scheme = HTTPBearer(auto_error=False)
+logger = get_logger("security")
 
 
 def _get_jwt_secret() -> str:
@@ -157,6 +160,46 @@ def decode_token(token: str, expected_type: str = "access") -> dict[str, Any]:
     return payload
 
 
+async def blacklist_access_token(token: str) -> bool:
+    """Store the JTI of an active access token in Redis with its remaining TTL.
+
+    Fix #12: Called on logout to ensure the access token cannot be replayed
+    after the session is revoked. The Redis key auto-expires at the token's
+    natural expiry so no cleanup is required.
+    Returns True if blacklisted, False if token already expired or invalid.
+    """
+    from core.redis import get_async_redis
+    try:
+        payload = jwt.decode(
+            token,
+            _get_jwt_secret(),
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+        jti = payload.get("jti")
+        exp = payload.get("exp", 0)
+        if not jti:
+            return False  # No JTI claim — cannot blacklist
+        remaining_ttl = max(1, math.ceil(exp - datetime.now(timezone.utc).timestamp()))
+        await get_async_redis().set(f"blocklist:jti:{jti}", "1", ex=remaining_ttl)
+        logger.info(f"Access token JTI {jti[:8]}... blacklisted (TTL={remaining_ttl}s)")
+        return True
+    except jwt.ExpiredSignatureError:
+        return False  # Already expired — no need to blacklist
+    except Exception as exc:
+        logger.warning(f"Failed to blacklist access token: {exc}")
+        return False
+
+
+async def check_token_blacklisted(jti: str) -> bool:
+    """Check if a token JTI is in the Redis blocklist. Returns True if revoked."""
+    from core.redis import get_async_redis
+    try:
+        return bool(await get_async_redis().exists(f"blocklist:jti:{jti}"))
+    except Exception as exc:
+        logger.warning(f"Blocklist Redis check failed (failing open): {exc}")
+        return False  # Redis unavailable — fail open to avoid locking out users
+
+
 def extract_access_token(
     bearer_auth: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
     cookie_token: Optional[str] = Cookie(default=None, alias=settings.ACCESS_COOKIE_NAME),
@@ -175,8 +218,19 @@ def extract_access_token(
 
 async def get_current_user(
     token: str = Security(extract_access_token),
+    db: "AsyncSession" = None,  # injected via FastAPI dependency at call site
 ):
-    """FastAPI dependency: stateless JWT token resolution and user profile fetch."""
+    """FastAPI dependency: stateless JWT token resolution and user profile fetch.
+
+    Fix #3: Accepts the request-scoped db session injected by FastAPI instead of
+    opening a second AsyncSessionLocal() internally.
+    Fix #12: Checks the JTI blocklist in Redis after signature verification so
+    tokens blacklisted on logout cannot be replayed.
+    """
+    from fastapi import Depends
+    from core.database import AsyncSessionLocal
+    from modules.identity.models import User
+
     payload = decode_token(token, expected_type="access")
     user_id_str = payload.get("sub")
     if not user_id_str:
@@ -195,18 +249,31 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    from core.database import AsyncSessionLocal
-    from modules.identity.models import User
+    # Fix #12: Reject tokens that were explicitly blacklisted on logout
+    jti = payload.get("jti")
+    if jti and await check_token_blacklisted(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    async with AsyncSessionLocal() as db:
+    # Use injected session if provided by FastAPI DI (shared with get_db);
+    # fall back to a fresh session if called outside a request context (e.g. tests).
+    if db is not None:
         user = await db.get(User, user_uuid)
-        if not user or not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or account is deactivated",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return user
+    else:
+        async with AsyncSessionLocal() as _db:
+            user = await _db.get(User, user_uuid)
+
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or account is deactivated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
 
 
 def extract_access_token_optional(
@@ -223,8 +290,13 @@ def extract_access_token_optional(
 
 async def get_current_user_optional(
     token: Optional[str] = Security(extract_access_token_optional),
+    db: "AsyncSession" = None,  # injected via FastAPI dependency at call site
 ) -> Optional[Any]:
-    """Optional authentication resolution returning User or None."""
+    """Optional authentication resolution returning User or None.
+
+    Fix #3: Shares the request-scoped db session instead of opening its own
+    AsyncSessionLocal(), eliminating a second DB connection per request.
+    """
     if not token:
         return None
     try:
@@ -236,11 +308,15 @@ async def get_current_user_optional(
         from core.database import AsyncSessionLocal
         from modules.identity.models import User
 
-        async with AsyncSessionLocal() as db:
+        if db is not None:
             user = await db.get(User, user_uuid)
-            if user and user.is_active:
-                return user
-            return None
+        else:
+            async with AsyncSessionLocal() as _db:
+                user = await _db.get(User, user_uuid)
+
+        if user and user.is_active:
+            return user
+        return None
     except Exception:
         return None
 

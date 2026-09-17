@@ -142,11 +142,27 @@ def publish_event_sync(channel: str, event_type: str, data: dict[str, Any]) -> i
 
 
 async def subscribe_channel(channel: str) -> AsyncGenerator[dict[str, Any], None]:
-    """Async generator that subscribes to a Redis channel and yields parsed event dictionaries."""
-    client = get_async_redis()
-    pubsub = client.pubsub()
+    """Async generator subscribing to a Redis channel and yielding parsed event dicts.
+
+    Fix #5: Creates a DEDICATED Redis connection per subscriber instead of
+    reusing the shared singleton pool. Redis Pub/Sub holds a connection open for
+    the entire lifetime of the subscription. If the shared pool were used here,
+    1,000 concurrent SSE connections would exhaust the pool and block all other
+    Redis operations (rate limiting, TTL writes, event publishing).
+
+    The dedicated connection is fully closed in the `finally` block regardless
+    of how the generator exits (client disconnect, error, cancellation).
+    """
+    # Each subscriber gets its own isolated connection — never competes with the pool
+    dedicated_client = aioredis.from_url(
+        REDIS_URL,
+        decode_responses=True,
+        socket_timeout=5.0,
+        socket_connect_timeout=5.0,
+    )
+    pubsub = dedicated_client.pubsub()
     await pubsub.subscribe(channel)
-    logger.info(f"Subscribed to Redis channel: {channel}")
+    logger.info(f"Subscribed to Redis channel: {channel} (dedicated connection)")
 
     try:
         async for message in pubsub.listen():
@@ -162,4 +178,6 @@ async def subscribe_channel(channel: str) -> AsyncGenerator[dict[str, Any], None
     finally:
         await pubsub.unsubscribe(channel)
         await pubsub.aclose()
+        await dedicated_client.aclose()  # fully release the dedicated connection
         logger.info(f"Unsubscribed and closed Redis pubsub channel: {channel}")
+

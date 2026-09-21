@@ -1,4 +1,4 @@
-"""Resilience tests for Groq LLM failure modes, malformed responses, and regex NLP fallback."""
+"""Tests for Groq LLM extraction and fail-fast behavior (no NLP fallback)."""
 
 from unittest.mock import AsyncMock
 import pytest
@@ -15,49 +15,46 @@ async def test_empty_transcript_handling():
 
 
 @pytest.mark.asyncio
-async def test_deterministic_nlp_fallback_extraction():
-    """Verify deterministic NLP extracts commitments when LLM is bypassed."""
-    extractor = PromiseExtractor()
-    sample_text = (
-        "During the product sync, the engineering lead confirmed: "
-        "We will deploy the single sign-on integration by next Friday. "
-        "The customer agreed this satisfies their enterprise requirements."
+async def test_groq_successful_extraction():
+    """Verify structured promise extraction when Groq returns valid JSON."""
+    mock_client = AsyncMock()
+    mock_client.generate.return_value = (
+        '[{"title": "Deploy SSO integration", "quote": "We will deploy SSO by next Friday.", '
+        '"customer": "Acme", "promised_by": "Next Friday", "promised_date_iso": "2026-10-02", "confidence": 0.95}]'
     )
-    results = extractor._deterministic_extract(sample_text)
+    extractor = PromiseExtractor(ai_client=mock_client)
+    sample_text = "We will deploy the single sign-on integration by next Friday."
+    results = await extractor.extract_candidates(sample_text)
     assert isinstance(results, list)
-    assert len(results) >= 1
-    first = results[0]
-    assert "title" in first
-    assert "quote" in first
-    assert "promised_by" in first
+    assert len(results) == 1
+    assert results[0]["title"] == "Deploy SSO integration"
+    assert results[0]["customer"] == "Acme"
 
 
 @pytest.mark.asyncio
-async def test_llm_api_failure_fallback_resilience():
-    """Verify that when Groq LLM throws connection errors, the extractor falls back gracefully."""
+async def test_llm_api_failure_fails_fast():
+    """Verify that when Groq LLM throws errors, extractor raises RuntimeError without falling back."""
     mock_client = AsyncMock()
     mock_client.generate.side_effect = ConnectionError("Groq API unreachable or timed out")
 
     extractor = PromiseExtractor(ai_client=mock_client)
     sample_text = "We will deliver the audit logging feature by end of sprint."
 
-    # Must NOT raise ConnectionError, must fall back to deterministic NLP
-    results = await extractor.extract_candidates(sample_text)
-    assert isinstance(results, list)
-    assert len(results) >= 1
-    assert "audit logging" in results[0]["title"].lower() or "deliver" in results[0]["quote"].lower()
+    # Must raise RuntimeError — no heuristic NLP fallback
+    with pytest.raises(RuntimeError) as exc_info:
+        await extractor.extract_candidates(sample_text)
+    assert "Groq LLM extraction failed" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
-async def test_malformed_llm_response_resilience():
-    """Verify that invalid/malformed JSON returned by LLM does not crash the pipeline."""
+async def test_malformed_llm_response_fails_fast():
+    """Verify that invalid/malformed JSON returned by LLM raises RuntimeError (fail fast)."""
     mock_client = AsyncMock()
     mock_client.generate.return_value = "Sorry, I am an AI and cannot format this as JSON: [unclosed list"
 
     extractor = PromiseExtractor(ai_client=mock_client)
     sample_text = "We will release the multi-tenant dashboard by November 15."
 
-    results = await extractor.extract_candidates(sample_text)
-    assert isinstance(results, list)
-    assert len(results) >= 1
-    assert "dashboard" in results[0]["title"].lower() or "release" in results[0]["quote"].lower()
+    with pytest.raises(RuntimeError) as exc_info:
+        await extractor.extract_candidates(sample_text)
+    assert "Groq LLM extraction failed" in str(exc_info.value)

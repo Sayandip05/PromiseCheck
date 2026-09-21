@@ -25,12 +25,14 @@ router = APIRouter(prefix="/events", tags=["Real-time Events (SSE & Pub/Sub)"])
 async def sse_event_stream(
     request: Request,
     token: Optional[str] = Query(None, description="JWT token for browser EventSource"),
+    last_event_id: Optional[str] = Query(None, alias="last_event_id", description="Last received event ID for stream replay"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Server-Sent Events (SSE) endpoint subscribing to workspace Redis Pub/Sub events."""
+    """Server-Sent Events (SSE) endpoint subscribing to workspace Redis events with Stream durability."""
     # Authenticate token from query param (EventSource standard) or Authorization header
     auth_header = request.headers.get("Authorization")
     raw_token = token or (auth_header.split(" ")[1] if auth_header and " " in auth_header else None)
+    reconnect_last_id = request.headers.get("Last-Event-ID") or last_event_id
 
     workspace_id: uuid.UUID
     if raw_token:
@@ -51,6 +53,20 @@ async def sse_event_stream(
     async def event_generator() -> AsyncGenerator[str, None]:
         # Initial handshake message
         yield f"event: connected\ndata: {json.dumps({'status': 'connected', 'workspace_id': str(workspace_id)})}\n\n"
+
+        # Replay any missed events from Redis Stream if reconnecting
+        if reconnect_last_id:
+            try:
+                from core.redis import read_stream_events
+                missed_events = await read_stream_events(channel_name, last_id=reconnect_last_id, count=50)
+                for mev in missed_events:
+                    m_id = mev.get("id", "")
+                    m_type = mev.get("type", "message")
+                    m_payload = mev.get("payload", {})
+                    id_line = f"id: {m_id}\n" if m_id else ""
+                    yield f"{id_line}event: {m_type}\ndata: {json.dumps(m_payload)}\n\n"
+            except Exception as stream_err:
+                logger.warning(f"Failed to replay stream events from '{reconnect_last_id}': {stream_err}")
 
         # Background listener queue
         queue: asyncio.Queue = asyncio.Queue()
@@ -77,7 +93,9 @@ async def sse_event_stream(
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
                     event_type = event.get("type", "message")
                     payload = event.get("payload", {})
-                    yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+                    msg_id = event.get("id", "")
+                    id_line = f"id: {msg_id}\n" if msg_id else ""
+                    yield f"{id_line}event: {event_type}\ndata: {json.dumps(payload)}\n\n"
                 except asyncio.TimeoutError:
                     # Heartbeat comment to keep HTTP/2 and reverse proxies alive
                     yield ": ping\n\n"

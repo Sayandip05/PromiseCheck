@@ -1,5 +1,6 @@
 """Centralized Redis client, Pub/Sub event bus, and TTL key manager."""
 
+import asyncio
 import json
 import os
 from typing import Any, AsyncGenerator, Optional
@@ -15,8 +16,9 @@ logger = get_logger("redis_service")
 # Resolve Redis URL strictly from settings or environment
 REDIS_URL = settings.REDIS_URL or os.getenv("REDIS_URL") or "redis://127.0.0.1:6379/0"
 
-# Async Redis client pool
+# Async Redis client pool & associated loop
 _async_redis_client: Optional[aioredis.Redis] = None
+_async_redis_loop: Optional[asyncio.AbstractEventLoop] = None
 
 # Synchronous Redis client for Celery tasks
 _sync_redis_client: Optional[redis.Redis] = None
@@ -37,14 +39,20 @@ def get_sync_redis() -> redis.Redis:
 
 def get_async_redis() -> aioredis.Redis:
     """Retrieve or initialize async Redis client for FastAPI request loop."""
-    global _async_redis_client
-    if _async_redis_client is None:
+    global _async_redis_client, _async_redis_loop
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    if _async_redis_client is None or _async_redis_loop != current_loop:
         _async_redis_client = aioredis.from_url(
             REDIS_URL,
             decode_responses=True,
             socket_timeout=5.0,
             socket_connect_timeout=5.0,
         )
+        _async_redis_loop = current_loop
     return _async_redis_client
 
 
@@ -110,19 +118,26 @@ async def delete_key(key: str) -> bool:
 
 
 async def publish_event(channel: str, event_type: str, data: dict[str, Any]) -> int:
-    """Publish an event to a Redis Pub/Sub channel asynchronously."""
+    """Publish an event to a Redis Pub/Sub channel and append to persistent Redis Stream."""
     message = json.dumps({
         "type": event_type,
         "payload": data,
-    })
+    }, default=str)
+    receivers = 0
     try:
         client = get_async_redis()
         receivers = await client.publish(channel, message)
-        logger.info(f"Published event '{event_type}' to channel '{channel}' ({receivers} subscribers)")
-        return receivers
+        # Durable Redis Stream append: messages survive subscriber disconnections
+        stream_key = f"stream:{channel}"
+        stream_fields = {
+            "type": event_type,
+            "payload": json.dumps(data, default=str),
+        }
+        await client.xadd(stream_key, stream_fields, maxlen=1000, approximate=True)
+        logger.info(f"Published event '{event_type}' to channel '{channel}' ({receivers} subscribers, stream appended)")
     except Exception as exc:
         logger.warning(f"Redis publish_event failed for channel '{channel}': {exc}")
-        return 0
+    return receivers
 
 
 def publish_event_sync(channel: str, event_type: str, data: dict[str, Any]) -> int:
@@ -130,15 +145,52 @@ def publish_event_sync(channel: str, event_type: str, data: dict[str, Any]) -> i
     message = json.dumps({
         "type": event_type,
         "payload": data,
-    })
+    }, default=str)
+    receivers = 0
     try:
         client = get_sync_redis()
         receivers = client.publish(channel, message)
-        logger.info(f"[Celery Worker] Published event '{event_type}' to channel '{channel}' ({receivers} subscribers)")
-        return receivers
+        stream_key = f"stream:{channel}"
+        stream_fields = {
+            "type": event_type,
+            "payload": json.dumps(data, default=str),
+        }
+        client.xadd(stream_key, stream_fields, maxlen=1000, approximate=True)
+        logger.info(f"[Celery Worker] Published event '{event_type}' to channel '{channel}' ({receivers} subscribers, stream appended)")
     except Exception as exc:
         logger.warning(f"Redis sync publish_event failed for channel '{channel}': {exc}")
-        return 0
+    return receivers
+
+
+async def read_stream_events(
+    channel: str,
+    last_id: str = "0-0",
+    count: int = 50,
+) -> list[dict[str, Any]]:
+    """Read persistent events from a Redis Stream for client replay on reconnection."""
+    stream_key = f"stream:{channel}"
+    events: list[dict[str, Any]] = []
+    try:
+        client = get_async_redis()
+        # Read events strictly newer than last_id
+        res = await client.xread({stream_key: last_id}, count=count)
+        if res:
+            for _, entries in res:
+                for entry_id, fields in entries:
+                    event_type = fields.get("type", "message")
+                    raw_payload = fields.get("payload", "{}")
+                    try:
+                        payload = json.loads(raw_payload)
+                    except (json.JSONDecodeError, TypeError):
+                        payload = raw_payload
+                    events.append({
+                        "id": entry_id,
+                        "type": event_type,
+                        "payload": payload,
+                    })
+    except Exception as exc:
+        logger.warning(f"Redis read_stream_events failed for '{stream_key}': {exc}")
+    return events
 
 
 async def subscribe_channel(channel: str) -> AsyncGenerator[dict[str, Any], None]:

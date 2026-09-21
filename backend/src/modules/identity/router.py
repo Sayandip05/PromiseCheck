@@ -140,29 +140,56 @@ async def google_auth(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    """Authenticate or register via Google OAuth / OIDC credential exchange."""
-    import jwt
+    """Authenticate or register via Google OAuth / OIDC credential exchange.
 
-    email = payload.email
-    full_name = payload.full_name or ""
-    google_sub = ""
+    The Google credential JWT is cryptographically verified using google-auth:
+    - RS256 signature verified against Google's public keys
+    - Audience must match GOOGLE_CLIENT_ID
+    - Token must not be expired
+    Passes only if all checks succeed; raises 401 otherwise.
+    """
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token as google_id_token
 
-    # Parse Google credential JWT if passed from Google Identity Services (GIS)
     token_str = payload.credential or payload.id_token
-    if token_str:
-        try:
-            unverified = jwt.decode(token_str, options={"verify_signature": False})
-            email = email or unverified.get("email")
-            full_name = full_name or unverified.get("name") or ""
-            google_sub = unverified.get("sub") or ""
-        except Exception:
-            pass
-
-    if not email:
+    if not token_str:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google credential or valid email required.",
+            detail="Google credential (id_token) is required.",
         )
+
+    client_id = settings.GOOGLE_CLIENT_ID
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google authentication is not configured. GOOGLE_CLIENT_ID is not set.",
+        )
+
+    try:
+        # verify_oauth2_token cryptographically verifies RS256 signature against Google JWKS,
+        # audience matching client_id, issuer, and token expiration.
+        id_info = google_id_token.verify_oauth2_token(
+            token_str,
+            google_requests.Request(),
+            client_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google credential: {exc}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    email = id_info.get("email")
+    if not email or not id_info.get("email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google account email is missing or unverified.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    full_name = id_info.get("name") or payload.full_name or ""
+    google_sub = id_info.get("sub") or ""
 
     user, access_token, refresh_token, expires_in, active_ws, all_ws = (
         await AuthService.authenticate_google(

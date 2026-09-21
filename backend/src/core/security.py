@@ -12,10 +12,12 @@ from typing import Any, Optional
 
 import bcrypt
 import jwt
-from fastapi import Cookie, HTTPException, Security, status
+from fastapi import Cookie, Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
+from core.database import get_db
 from core.logging import get_logger
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -218,17 +220,14 @@ def extract_access_token(
 
 async def get_current_user(
     token: str = Security(extract_access_token),
-    db: "AsyncSession" = None,  # injected via FastAPI dependency at call site
+    db: AsyncSession = Depends(get_db),
 ):
     """FastAPI dependency: stateless JWT token resolution and user profile fetch.
 
-    Fix #3: Accepts the request-scoped db session injected by FastAPI instead of
-    opening a second AsyncSessionLocal() internally.
-    Fix #12: Checks the JTI blocklist in Redis after signature verification so
-    tokens blacklisted on logout cannot be replayed.
+    Shares the request-scoped db session injected via Depends(get_db) to avoid
+    opening multiple connections per request.
+    Checks the JTI blocklist in Redis so revoked tokens are rejected.
     """
-    from fastapi import Depends
-    from core.database import AsyncSessionLocal
     from modules.identity.models import User
 
     payload = decode_token(token, expected_type="access")
@@ -249,7 +248,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Fix #12: Reject tokens that were explicitly blacklisted on logout
+    # Reject tokens that were explicitly blacklisted on logout
     jti = payload.get("jti")
     if jti and await check_token_blacklisted(jti):
         raise HTTPException(
@@ -258,13 +257,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Use injected session if provided by FastAPI DI (shared with get_db);
-    # fall back to a fresh session if called outside a request context (e.g. tests).
-    if db is not None:
-        user = await db.get(User, user_uuid)
-    else:
-        async with AsyncSessionLocal() as _db:
-            user = await _db.get(User, user_uuid)
+    user = await db.get(User, user_uuid)
 
     if not user or not user.is_active:
         raise HTTPException(
@@ -290,12 +283,11 @@ def extract_access_token_optional(
 
 async def get_current_user_optional(
     token: Optional[str] = Security(extract_access_token_optional),
-    db: "AsyncSession" = None,  # injected via FastAPI dependency at call site
+    db: AsyncSession = Depends(get_db),
 ) -> Optional[Any]:
     """Optional authentication resolution returning User or None.
 
-    Fix #3: Shares the request-scoped db session instead of opening its own
-    AsyncSessionLocal(), eliminating a second DB connection per request.
+    Shares the request-scoped db session instead of opening its own AsyncSessionLocal().
     """
     if not token:
         return None
@@ -305,15 +297,9 @@ async def get_current_user_optional(
         if not user_id_str:
             return None
         user_uuid = uuid.UUID(user_id_str)
-        from core.database import AsyncSessionLocal
         from modules.identity.models import User
 
-        if db is not None:
-            user = await db.get(User, user_uuid)
-        else:
-            async with AsyncSessionLocal() as _db:
-                user = await _db.get(User, user_uuid)
-
+        user = await db.get(User, user_uuid)
         if user and user.is_active:
             return user
         return None

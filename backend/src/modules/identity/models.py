@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,9 +32,21 @@ class User(Base):
 
 
 class Identity(Base):
-    """Linked identity provider (e.g. Google OIDC)."""
+    """Linked identity provider (e.g. Google OIDC).
+
+    The (provider, provider_subject) pair is the canonical identity key per the
+    architecture: issuer + subject, never email alone.  The unique constraint
+    prevents a race on concurrent first-logins from creating duplicate rows for
+    the same Google account, which would leave the user in an inconsistent state.
+    """
 
     __tablename__ = "identities"
+
+    # DB-level guard: one row per provider+subject pair globally.
+    # This prevents duplicate Google identity rows on concurrent first-login.
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_subject", name="uq_identity_provider_subject"),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True

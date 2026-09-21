@@ -9,6 +9,17 @@ from sqlalchemy import engine_from_config, pool
 from core.config import settings
 from core.database import Base
 
+# Import every model module so they register on Base.metadata before autogenerate
+# runs.  Without these imports, Alembic sees an empty metadata and generates a
+# no-op migration.
+import modules.identity.models  # noqa: F401
+import modules.workspaces.models  # noqa: F401
+import modules.commitments.models  # noqa: F401
+import modules.customers.models  # noqa: F401
+import modules.ingestion.models  # noqa: F401
+import modules.delivery.models  # noqa: F401
+import modules.audit.models  # noqa: F401
+
 config = context.config
 
 if config.config_file_name is not None:

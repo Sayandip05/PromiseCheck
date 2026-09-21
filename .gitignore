@@ -26,6 +26,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+.bob/
 
 # Python / Backend
 __pycache__/
@@ -49,3 +50,5 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+promisecheck-post-deployment-audit-report.html

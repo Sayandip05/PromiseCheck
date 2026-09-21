@@ -1,7 +1,7 @@
 """Commitments REST router with full lifecycle, evidence tracking, and AI drafting."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,11 +27,40 @@ from modules.commitments.schemas import (
 )
 from modules.identity.models import User
 from modules.workspaces.models import Membership, Workspace
+import json
 from modules.workspaces.service import get_active_workspace_id
 from core.redis import publish_event
 from modules.audit.service import record_audit_event
+from core.logging import get_logger
 
+logger = get_logger("commitments_router")
 router = APIRouter(prefix="/commitments", tags=["Commitments"])
+
+# ---------------------------------------------------------------------------
+# State transitions matrix and category synchronization
+# ---------------------------------------------------------------------------
+VALID_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "awaiting-review": {"awaiting-review", "confirmed", "at-risk", "blocked", "canceled", "superseded"},
+    "confirmed": {"confirmed", "at-risk", "overdue", "blocked", "delivered", "canceled", "superseded"},
+    "at-risk": {"at-risk", "confirmed", "overdue", "blocked", "delivered", "canceled", "superseded"},
+    "overdue": {"overdue", "confirmed", "at-risk", "blocked", "delivered", "canceled", "superseded"},
+    "blocked": {"blocked", "confirmed", "at-risk", "overdue", "delivered", "canceled", "superseded"},
+    "delivered": {"delivered"},    # Terminal: cannot arbitrarily reopen
+    "canceled": {"canceled"},      # Terminal
+    "superseded": {"superseded"},  # Terminal
+}
+
+STATUS_CATEGORY_MAP: dict[str, str] = {
+    "awaiting-review": "awaiting-review",
+    "confirmed": "on-track",
+    "at-risk": "needs-attention",
+    "overdue": "needs-attention",
+    "blocked": "needs-attention",
+    "delivered": "delivered",
+    "superseded": "superseded",
+    "canceled": "canceled",
+}
+
 
 
 def _to_dto(c: Commitment) -> CommitmentDTO:
@@ -53,7 +82,8 @@ def _to_dto(c: Commitment) -> CommitmentDTO:
             email=c.owner_email,
         ),
         promisedBy=c.promised_by or "TBD",
-        promisedDateIso=c.promised_date_iso or "",
+        # Serialise the Date column to an ISO string for the frontend contract.
+        promisedDateIso=c.promised_date.isoformat() if c.promised_date else "",
         status=c.status,
         statusLabel=c.status_label,
         isConfirmed=c.is_confirmed,
@@ -118,11 +148,15 @@ async def _seed_default_commitments_if_empty(db: AsyncSession, workspace_id: uui
             owner_name="Maya Chen",
             owner_email="maya@acme.corp",
             promised_by="Sep 30, 2026",
-            promised_date_iso="2026-09-30",
+            promised_date=date(2026, 9, 30),
             status="at-risk",
             status_label="At risk",
             is_confirmed=True,
             category="needs-attention",
+            ticket_id="ENG-1042",
+            ticket_status="In progress",
+            has_conflict=True,
+            conflict_days=5,
             quote="We'll enable SSO for your team by September 30.",
             original_promise_json={
                 "quote": "We'll enable SSO for your team by September 30.",
@@ -157,11 +191,15 @@ async def _seed_default_commitments_if_empty(db: AsyncSession, workspace_id: uui
             owner_name="Daniel Stone",
             owner_email="daniel@northstar.io",
             promised_by="Sep 22, 2026",
-            promised_date_iso="2026-09-22",
+            promised_date=date(2026, 9, 22),
             status="overdue",
             status_label="Overdue",
             is_confirmed=True,
             category="needs-attention",
+            ticket_id="ENG-988",
+            ticket_status="Blocked",
+            has_conflict=True,
+            conflict_days=2,
             quote="We will export and deliver full compliance audit logs by September 22nd.",
             original_promise_json={
                 "quote": "We will export and deliver full compliance audit logs by September 22nd.",
@@ -196,11 +234,12 @@ async def _seed_default_commitments_if_empty(db: AsyncSession, workspace_id: uui
             owner_name="Sara Connor",
             owner_email="sara@acme.corp",
             promised_by="Oct 12, 2026",
-            promised_date_iso="2026-10-12",
+            promised_date=date(2026, 10, 12),
             status="awaiting-review",
             status_label="Awaiting review",
             is_confirmed=False,
             category="awaiting-review",
+            has_conflict=False,
             quote="Our engineering team can add custom payload signature webhooks before mid-October.",
             original_promise_json={
                 "quote": "Our engineering team can add custom payload signature webhooks before mid-October.",
@@ -222,11 +261,14 @@ async def _seed_default_commitments_if_empty(db: AsyncSession, workspace_id: uui
             owner_name="Maya Chen",
             owner_email="maya@acme.corp",
             promised_by="Aug 30, 2026",
-            promised_date_iso="2026-08-30",
+            promised_date=date(2026, 8, 30),
             status="delivered",
             status_label="Delivered",
             is_confirmed=True,
             category="delivered",
+            ticket_id="ENG-870",
+            ticket_status="Done",
+            has_conflict=False,
             quote="We will have the PDF report generation in staging and live for your team by August 30.",
             original_promise_json={
                 "quote": "We will have the PDF report generation in staging and live for your team by August 30.",
@@ -355,7 +397,12 @@ async def create_commitment(
         owner_name=owner_name,
         owner_email=owner_email,
         promised_by=payload.promised_by or "Upcoming",
-        promised_date_iso=payload.promised_date_iso or "",
+        promised_date=payload.promised_date,
+        # Populate first-class ticket columns from the incoming payload
+        ticket_id=payload.ticket_id,
+        ticket_status="In progress" if payload.ticket_id else None,
+        has_conflict=False,
+        conflict_days=0,
         status="confirmed",
         status_label="Confirmed",
         is_confirmed=True,
@@ -427,14 +474,18 @@ async def update_commitment(
     if payload.promised_by is not None:
         c.promised_by = payload.promised_by
     if payload.status is not None:
+        allowed = VALID_STATUS_TRANSITIONS.get(c.status, {c.status})
+        if payload.status not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid status transition from '{c.status}' to '{payload.status}'.",
+            )
         c.status = payload.status
         c.status_label = payload.status.replace("-", " ").capitalize()
+        c.category = STATUS_CATEGORY_MAP.get(payload.status, c.category)
         if payload.status == "delivered":
-            c.category = "delivered"
-        elif payload.status in ("at-risk", "overdue"):
-            c.category = "needs-attention"
-        elif payload.status == "confirmed":
-            c.category = "on-track"
+            c.is_confirmed = True
+
     if payload.is_confirmed is not None:
         c.is_confirmed = payload.is_confirmed
         if payload.is_confirmed and c.status == "awaiting-review":
@@ -445,7 +496,7 @@ async def update_commitment(
     await record_audit_event(
         db=db,
         workspace_id=c.workspace_id,
-        actor_id=c.workspace_id,
+        actor_id=user.id if user else c.workspace_id,
         action="COMMITMENT_UPDATED",
         target_type="commitment",
         target_id=str(c.id),
@@ -492,7 +543,7 @@ async def confirm_commitment(
     await record_audit_event(
         db=db,
         workspace_id=c.workspace_id,
-        actor_id=c.workspace_id,
+        actor_id=user.id if user else c.workspace_id,
         action="COMMITMENT_CONFIRMED",
         target_type="commitment",
         target_id=str(c.id),
@@ -548,6 +599,47 @@ async def generate_draft_update(
         f"{c.owner_name}\nPromiseCheck Team"
     )
 
+    try:
+        from ai.client import AIClient
+        ai_client = AIClient()
+        system_prompt = (
+            "You are an expert customer communications specialist for PromiseCheck. "
+            "Draft a transparent, evidence-grounded status update email regarding a customer commitment. "
+            "Output valid JSON with keys 'subject' and 'body' only."
+        )
+        prompt = (
+            f"Commitment: {c.title}\n"
+            f"Customer: {c.customer_name}\n"
+            f"Recipient: {recipient}\n"
+            f"Promised Date / Horizon: {c.promised_by}\n"
+            f"Current Status: {c.status}\n"
+            f"Linked Ticket: {ticket_id}\n"
+            f"Target Delivery: {target_delivery}\n"
+            f"Owner: {c.owner_name}\n\n"
+            "Produce an authentic, polished update email as a JSON object."
+        )
+        raw_response = await ai_client.generate(prompt=prompt, system_prompt=system_prompt)
+        if raw_response:
+            clean = raw_response.strip()
+            if clean.startswith("```json"):
+                clean = clean[7:]
+            if clean.startswith("```"):
+                clean = clean[3:]
+            if clean.endswith("```"):
+                clean = clean[:-3]
+            try:
+                data = json.loads(clean.strip())
+                if isinstance(data, dict):
+                    if data.get("subject"):
+                        subject = str(data["subject"]).strip()
+                    if data.get("body"):
+                        body = str(data["body"]).strip()
+            except Exception:
+                if clean:
+                    body = clean
+    except Exception as exc:
+        logger.warning(f"AI draft generation error, using fallback template: {exc}")
+
     return DraftUpdateResponse(
         commitment_id=str(c.id),
         subject=subject,
@@ -585,7 +677,7 @@ async def delete_commitment(
     await record_audit_event(
         db=db,
         workspace_id=ws_id,
-        actor_id=ws_id,
+        actor_id=user.id if user else ws_id,
         action="COMMITMENT_DELETED",
         target_type="commitment",
         target_id=str(commitment_id),

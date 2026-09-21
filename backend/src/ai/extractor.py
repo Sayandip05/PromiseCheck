@@ -1,7 +1,6 @@
-"""Structured promise extraction pipeline using Groq LLM with deterministic NLP fallback."""
+"""Structured promise extraction pipeline using Groq LLM."""
 
 import json
-import re
 from typing import Any, Optional
 
 from ai.client import AIClient
@@ -30,33 +29,38 @@ class PromiseExtractor:
         self.client = ai_client or AIClient()
 
     async def extract_candidates(self, transcript_text: str) -> list[dict[str, Any]]:
-        """Extract structured promise candidates from text using Groq LLM or NLP fallback."""
+        """Extract structured promise candidates from text using Groq LLM.
+
+        Groq LLM is the exclusive extraction engine. If Groq is unreachable or fails,
+        raises a RuntimeError immediately without heuristic fallback.
+        """
         if not transcript_text or not transcript_text.strip():
             return []
 
-        # 1. Attempt extraction via Groq LLM
         prompt = f"Transcript Content:\n\"\"\"\n{transcript_text[:4000]}\n\"\"\"\n\nExtract all customer commitments as JSON array."
         try:
             raw_llm_response = await self.client.generate(prompt, system_prompt=SYSTEM_PROMPT)
-            if raw_llm_response:
-                # Clean any markdown fences if present
-                clean_json_text = raw_llm_response.strip()
-                if clean_json_text.startswith("```json"):
-                    clean_json_text = clean_json_text[7:]
-                if clean_json_text.startswith("```"):
-                    clean_json_text = clean_json_text[3:]
-                if clean_json_text.endswith("```"):
-                    clean_json_text = clean_json_text[:-3]
+            if not raw_llm_response:
+                raise RuntimeError("Groq LLM returned an empty response.")
 
-                parsed = json.loads(clean_json_text.strip())
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    logger.info(f"Groq successfully extracted {len(parsed)} commitments")
-                    return parsed
+            # Clean any markdown fences if present
+            clean_json_text = raw_llm_response.strip()
+            if clean_json_text.startswith("```json"):
+                clean_json_text = clean_json_text[7:]
+            if clean_json_text.startswith("```"):
+                clean_json_text = clean_json_text[3:]
+            if clean_json_text.endswith("```"):
+                clean_json_text = clean_json_text[:-3]
+
+            parsed = json.loads(clean_json_text.strip())
+            if not isinstance(parsed, list):
+                raise ValueError("LLM response did not contain a JSON array.")
+
+            logger.info(f"Groq successfully extracted {len(parsed)} commitments")
+            return parsed
         except Exception as err:
-            logger.warning(f"LLM extraction parse error: {err}. Falling back to deterministic NLP.")
-
-        # 2. Deterministic NLP regex fallback
-        return self._deterministic_extract(transcript_text)
+            logger.error(f"Groq LLM extraction failed: {err}")
+            raise RuntimeError(f"Groq LLM extraction failed: {err}") from err
 
     def extract_candidates_sync(
         self,
@@ -66,9 +70,8 @@ class PromiseExtractor:
     ) -> list[dict[str, Any]]:
         """Synchronous commitment extractor for Celery worker context.
 
-        Calls generate_sync() (blocking httpx.Client) rather than creating a
-        nested asyncio event loop with asyncio.run(). Falls back to the
-        deterministic NLP extractor if the LLM call fails or no key is set.
+        Calls generate_sync() (blocking httpx.Client). Groq LLM is the exclusive
+        extraction engine; fails immediately if unavailable.
         """
         if not transcript_text or not transcript_text.strip():
             return []
@@ -79,66 +82,24 @@ class PromiseExtractor:
         )
         try:
             raw_response = self.client.generate_sync(prompt, system_prompt=SYSTEM_PROMPT)
-            if raw_response:
-                clean = raw_response.strip()
-                if clean.startswith("```json"):
-                    clean = clean[7:]
-                if clean.startswith("```"):
-                    clean = clean[3:]
-                if clean.endswith("```"):
-                    clean = clean[:-3]
-                parsed = json.loads(clean.strip())
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    logger.info(f"[Celery] Groq sync extracted {len(parsed)} commitments")
-                    return parsed
+            if not raw_response:
+                raise RuntimeError("Groq LLM returned an empty response.")
+
+            clean = raw_response.strip()
+            if clean.startswith("```json"):
+                clean = clean[7:]
+            if clean.startswith("```"):
+                clean = clean[3:]
+            if clean.endswith("```"):
+                clean = clean[:-3]
+
+            parsed = json.loads(clean.strip())
+            if not isinstance(parsed, list):
+                raise ValueError("LLM response did not contain a JSON array.")
+
+            logger.info(f"[Celery] Groq sync extracted {len(parsed)} commitments")
+            return parsed
         except Exception as err:
-            logger.warning(f"[Celery] Sync LLM extraction failed: {err}. Using NLP fallback.")
+            logger.error(f"[Celery] Sync Groq LLM extraction failed: {err}")
+            raise RuntimeError(f"Groq LLM extraction failed: {err}") from err
 
-        return self._deterministic_extract(transcript_text)
-
-    def _deterministic_extract(self, text: str) -> list[dict[str, Any]]:
-        """Fallback rule-based heuristic extractor for offline or fallback environments."""
-        candidates: list[dict[str, Any]] = []
-        sentences = re.split(r"[.!?\n]+", text)
-
-        promise_patterns = [
-            r"\b(we will|we\'ll|i will|i\'ll|we promise|committed to|guarantee|deliver|deploy|release)\b",
-            r"\b(by|before|until|deadline|eta)\b\s+([A-Z][a-z]+|\d{1,2}|next\s+\w+)",
-        ]
-
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if len(sentence) < 15:
-                continue
-
-            has_promise_verb = re.search(promise_patterns[0], sentence, re.IGNORECASE)
-            date_match = re.search(promise_patterns[1], sentence, re.IGNORECASE)
-
-            if has_promise_verb:
-                promised_date = date_match.group(0) if date_match else "Upcoming"
-                clean_title = re.sub(r"^(we will|we\'ll|i will|i\'ll)\s+", "", sentence, flags=re.IGNORECASE)
-                clean_title = clean_title.capitalize()
-                if len(clean_title) > 60:
-                    clean_title = clean_title[:57] + "..."
-
-                candidates.append({
-                    "title": clean_title,
-                    "quote": sentence,
-                    "customer": "Acme",
-                    "promised_by": promised_date,
-                    "promised_date_iso": "2026-10-15",
-                    "confidence": 0.88,
-                })
-
-        if not candidates:
-            # Provide at least one structured candidate from sample text
-            candidates.append({
-                "title": "Review discussed deliverables",
-                "quote": text[:120].strip() + ("..." if len(text) > 120 else ""),
-                "customer": "Acme",
-                "promised_by": "Upcoming Sprint",
-                "promised_date_iso": "2026-10-01",
-                "confidence": 0.80,
-            })
-
-        return candidates

@@ -51,11 +51,8 @@ async def _seed_audit_events_if_empty(db: AsyncSession, workspace_id: uuid.UUID)
             action="ticket_synced",
             target_type="jira",
             target_id="ENG-1042",
-            payload={
-                "description": "Jira sync updated target delivery to Oct 05",
-                "source": "Jira · 10 min ago",
-                "timeAgo": "10 min ago",
-            },
+            description="Jira sync updated target delivery to Oct 05",
+            payload={"source": "Jira · 10 min ago", "timeAgo": "10 min ago"},
         ),
         AuditEvent(
             workspace_id=workspace_id,
@@ -63,11 +60,8 @@ async def _seed_audit_events_if_empty(db: AsyncSession, workspace_id: uuid.UUID)
             action="commitment_confirmed",
             target_type="commitment",
             target_id="comm-1",
-            payload={
-                "description": "Maya confirmed the SSO commitment",
-                "source": "Manual review · Yesterday",
-                "timeAgo": "Yesterday",
-            },
+            description="Maya confirmed the SSO commitment",
+            payload={"source": "Manual review · Yesterday", "timeAgo": "Yesterday"},
         ),
         AuditEvent(
             workspace_id=workspace_id,
@@ -75,11 +69,8 @@ async def _seed_audit_events_if_empty(db: AsyncSession, workspace_id: uuid.UUID)
             action="transcript_imported",
             target_type="ingestion",
             target_id="rec-meet-8823",
-            payload={
-                "description": "Acme onboarding transcript imported",
-                "source": "Google Meet · Yesterday",
-                "timeAgo": "Yesterday",
-            },
+            description="Acme onboarding transcript imported",
+            payload={"source": "Google Meet · Yesterday", "timeAgo": "Yesterday"},
         ),
         AuditEvent(
             workspace_id=workspace_id,
@@ -87,11 +78,8 @@ async def _seed_audit_events_if_empty(db: AsyncSession, workspace_id: uuid.UUID)
             action="alert_dispatched",
             target_type="slack",
             target_id="#customer-commitments",
-            payload={
-                "description": "Slack alert dispatched to #customer-commitments",
-                "source": "Slack · 2 days ago",
-                "timeAgo": "2 days ago",
-            },
+            description="Slack alert dispatched to #customer-commitments",
+            payload={"source": "Slack · 2 days ago", "timeAgo": "2 days ago"},
         ),
     ]
     db.add_all(seeds)
@@ -122,7 +110,8 @@ async def list_audit_events(
             action=e.action,
             target_type=e.target_type,
             target_id=e.target_id,
-            description=(e.payload or {}).get("description", f"{e.action} on {e.target_type}"),
+            # description now comes from the dedicated column, not JSONB payload
+            description=e.description or f"{e.action} on {e.target_type}",
             source=(e.payload or {}).get("source", "System"),
             timeAgo=(e.payload or {}).get("timeAgo", "Recently"),
             created_at=e.created_at,

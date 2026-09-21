@@ -17,14 +17,20 @@ async def record_audit_event(
     description: str,
     payload: Optional[dict[str, Any]] = None,
 ) -> AuditEvent:
-    """Helper to append an immutable audit record."""
+    """Helper to append an immutable audit record.
+
+    description is stored in the dedicated Text column (queryable via B-tree).
+    payload holds only structured metadata — the description key is no longer
+    duplicated there.
+    """
     event = AuditEvent(
         workspace_id=workspace_id,
         actor_id=actor_id,
         action=action,
         target_type=target_type,
         target_id=str(target_id),
-        payload={"description": description, **(payload or {})},
+        description=description,
+        payload=payload or {},
     )
     db.add(event)
     await db.flush()

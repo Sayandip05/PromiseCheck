@@ -97,15 +97,19 @@ async def evaluate_workspace_risk(
             on_track_count += 1
             continue
 
-        # Evaluate target date
+        # Evaluate target date from the authoritative Date column.
+        # due_date (DateTime) takes priority; fall back to promised_date (Date).
         target_dt = None
-        if c.promised_date_iso:
-            try:
-                target_dt = datetime.fromisoformat(c.promised_date_iso.replace("Z", "+00:00"))
-                if target_dt.tzinfo is None:
-                    target_dt = target_dt.replace(tzinfo=timezone.utc)
-            except Exception:
-                target_dt = None
+        if c.due_date:
+            target_dt = c.due_date if c.due_date.tzinfo else c.due_date.replace(tzinfo=timezone.utc)
+        elif c.promised_date:
+            # Convert date → midnight UTC datetime for arithmetic
+            target_dt = datetime(
+                c.promised_date.year,
+                c.promised_date.month,
+                c.promised_date.day,
+                tzinfo=timezone.utc,
+            )
 
 
         risk = c.risk_json or {}

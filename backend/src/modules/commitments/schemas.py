@@ -1,5 +1,6 @@
 """Commitments Pydantic DTO schemas aligned with frontend contract."""
 
+from datetime import date
 from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,6 +51,7 @@ class CommitmentDTO(BaseModel):
     customer: str
     owner: OwnerSchema
     promisedBy: str
+    # ISO date string forwarded to the frontend (serialised from the DB Date column).
     promisedDateIso: str
     status: str  # at-risk | overdue | blocked | confirmed | delivered | awaiting-review
     statusLabel: str
@@ -81,7 +83,8 @@ class CommitmentCreateRequest(BaseModel):
     customer: str = "Acme"
     quote: str = ""
     promised_by: str = ""
-    promised_date_iso: str = ""
+    # Accept either a date object or a YYYY-MM-DD string from the API caller.
+    promised_date: Optional[date] = None
     owner_name: Optional[str] = None
     owner_email: Optional[str] = None
     ticket_id: Optional[str] = None

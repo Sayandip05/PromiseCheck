@@ -8,13 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 __version__ = "0.1.0"
 from core.config import settings
-from core.database import Base, async_engine, check_database_health
+from core.database import async_engine, check_database_health
 import modules.identity.models  # noqa: F401
 import modules.workspaces.models  # noqa: F401
 import modules.commitments.models  # noqa: F401
 import modules.customers.models  # noqa: F401
 import modules.ingestion.models  # noqa: F401
 import modules.delivery.models  # noqa: F401
+import modules.outbox.models  # noqa: F401
 from core.logging import get_logger, setup_logging
 from jobs.celery_app import check_redis_health
 
@@ -39,15 +40,14 @@ logger = get_logger("promisecheck.app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Graceful startup and shutdown lifecycle management (Twelve-Factor Factor IX)."""
+    """Graceful startup and shutdown lifecycle management (Twelve-Factor Factor IX).
+
+    Schema is managed exclusively by Alembic migrations (`alembic upgrade head`),
+    run as a pre-deploy step in CI/CD.  create_all is intentionally removed to
+    prevent silent schema drift on live databases.
+    """
     setup_logging()
     logger.info(f"Starting PromiseCheck v{__version__} in '{settings.APP_ENV}' mode")
-    try:
-        async with async_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database schema initialized successfully.")
-    except Exception as exc:
-        logger.warning(f"Database schema auto-init warning: {exc}")
     yield
     logger.info("Initiating graceful shutdown...")
     await async_engine.dispose()

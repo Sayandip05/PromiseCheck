@@ -1,5 +1,8 @@
 """Comprehensive unit and integration tests for middleware, connectors, and core features."""
 
+import os
+from unittest.mock import AsyncMock, patch
+import uuid
 import pytest
 from fastapi.testclient import TestClient
 
@@ -153,3 +156,68 @@ def test_delivery_verification_flow(client: TestClient):
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
+
+
+def test_jwt_secret_crash_on_missing_key():
+    """Verify _get_jwt_secret raises RuntimeError when no secret key is configured."""
+    from core.security import _get_jwt_secret
+    from core.config import settings
+
+    with patch.object(settings, "JWT_SECRET_KEY", ""), \
+         patch.object(settings, "SECRET_KEY", ""), \
+         patch.object(settings, "SESSION_SIGNING_KEY", ""), \
+         patch.dict(os.environ, {"JWT_SECRET_KEY": "", "SECRET_KEY": "", "SESSION_SIGNING_KEY": ""}):
+        with pytest.raises(RuntimeError) as exc:
+            _get_jwt_secret()
+        assert "JWT signing secret is not configured" in str(exc.value)
+
+
+def test_csp_production_policy_no_unsafe_inline(client: TestClient):
+    """Verify CSP header strictly forbids unsafe-inline in production mode."""
+    from core.config import settings
+
+    with patch.object(settings, "APP_ENV", "production"):
+        res = client.get("/healthz")
+        csp = res.headers.get("content-security-policy", "")
+        assert "unsafe-inline" not in csp
+        assert "default-src 'none'" in csp
+
+
+@pytest.mark.asyncio
+async def test_audio_upload_size_limit_rejection():
+    """Verify audio file upload exceeding 200 MB raises HTTP 413 Payload Too Large."""
+    from fastapi import HTTPException, UploadFile
+    from modules.ingestion.router import upload_audio_file
+
+    class HugeBytes:
+        def __len__(self):
+            return 200_000_001
+
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.read.return_value = HugeBytes()
+    mock_file.filename = "large_recording.mp3"
+
+    with pytest.raises(HTTPException) as exc:
+        await upload_audio_file(file=mock_file, db=AsyncMock())
+    assert exc.value.status_code == 413
+    assert "200 MB" in exc.value.detail
+
+
+def test_registration_error_does_not_leak_email_pii(client: TestClient):
+    """Verify duplicate user registration does not echo back email address (PII protection)."""
+    unique_email = f"pii_check_{uuid.uuid4().hex[:8]}@example.com"
+    payload = {
+        "email": unique_email,
+        "password": "ValidPassword123!",
+        "full_name": "Test User",
+    }
+    # Register first time
+    res1 = client.post("/api/v1/auth/register", json=payload)
+    assert res1.status_code == 201
+
+    # Second registration attempt must return generic error without user's email
+    res2 = client.post("/api/v1/auth/register", json=payload)
+    assert res2.status_code == 400
+    detail = res2.json().get("detail", "")
+    assert detail == "An account with this email address already exists."
+    assert unique_email not in detail

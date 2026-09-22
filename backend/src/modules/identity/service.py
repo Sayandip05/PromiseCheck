@@ -112,7 +112,7 @@ class AuthService:
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User with email '{payload.email}' already exists.",
+                detail="An account with this email address already exists.",
             )
 
         user = User(

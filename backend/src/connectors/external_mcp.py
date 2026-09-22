@@ -6,6 +6,7 @@ from typing import Any, Optional
 import httpx
 
 from connectors.base import BaseConnector
+from connectors.ssrf_guard import validate_no_ssrf
 from core.logging import get_logger
 
 logger = get_logger("connector.external_mcp")
@@ -27,6 +28,7 @@ class ExternalMCPConnector(BaseConnector):
         if not url:
             logger.info("[External MCP] No endpoint URL supplied. Fluent fallback active.")
             return True
+        validate_no_ssrf(url)  # SSRF guard: block private/internal IPs (raises HTTPException)
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 res = await client.get(f"{url.rstrip('/')}/tools")
@@ -39,6 +41,7 @@ class ExternalMCPConnector(BaseConnector):
         """Query tool discovery manifest from remote MCP server."""
         url = endpoint_url or self.endpoint_url
         if url:
+            validate_no_ssrf(url)  # SSRF guard: block private/internal IPs (raises HTTPException)
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.get(f"{url.rstrip('/')}/tools")
@@ -71,6 +74,7 @@ class ExternalMCPConnector(BaseConnector):
         """Execute a tool on the external MCP server."""
         url = endpoint_url or self.endpoint_url
         if url:
+            validate_no_ssrf(url)  # SSRF guard: block private/internal IPs (raises HTTPException)
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     res = await client.post(

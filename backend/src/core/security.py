@@ -25,7 +25,13 @@ logger = get_logger("security")
 
 
 def _get_jwt_secret() -> str:
-    """Retrieve signing secret strictly from environment/settings with fallback."""
+    """Retrieve JWT signing secret from environment or settings.
+
+    SECURITY: No fallback. If none of JWT_SECRET_KEY, SECRET_KEY, or
+    SESSION_SIGNING_KEY are set, startup crashes immediately with a clear
+    error. This prevents misconfigured deployments from silently using a
+    publicly-known development key.
+    """
     key = (
         settings.JWT_SECRET_KEY
         or os.getenv("JWT_SECRET_KEY")
@@ -36,7 +42,11 @@ def _get_jwt_secret() -> str:
         or ""
     )
     if not key:
-        key = "dev-insecure-jwt-secret-key-change-me-32chars"
+        raise RuntimeError(
+            "JWT signing secret is not configured. "
+            "Set JWT_SECRET_KEY, SECRET_KEY, or SESSION_SIGNING_KEY in your environment. "
+            "This is a required secret — the application cannot start without it."
+        )
     return key
 
 
@@ -193,13 +203,31 @@ async def blacklist_access_token(token: str) -> bool:
 
 
 async def check_token_blacklisted(jti: str) -> bool:
-    """Check if a token JTI is in the Redis blocklist. Returns True if revoked."""
+    """Check if a token JTI is in the Redis blocklist. Returns True if revoked.
+
+    SECURITY TRADE-OFF (intentional fail-open):
+    If Redis is unavailable, we return False (token is NOT blacklisted) rather
+    than True (rejecting all requests). This is a deliberate availability vs.
+    security trade-off:
+    - Failing closed (return True): blocks every authenticated user when Redis
+      drops, causing a complete service outage.
+    - Failing open (return False): allows a narrow replay window for explicitly
+      logged-out tokens until Redis recovers. This window is bounded by the
+      access token TTL (15 minutes max).
+    The warning log below is the alert signal — wire it to PagerDuty/Alertmanager
+    so Redis downtime is detected immediately.
+    """
     from core.redis import get_async_redis
     try:
         return bool(await get_async_redis().exists(f"blocklist:jti:{jti}"))
     except Exception as exc:
-        logger.warning(f"Blocklist Redis check failed (failing open): {exc}")
-        return False  # Redis unavailable — fail open to avoid locking out users
+        # ALERT: Redis blocklist unavailable — fail-open is intentional (see docstring).
+        # If this warning fires repeatedly, Redis is down and the on-call team should act.
+        logger.warning(
+            f"[SECURITY ALERT] Token blocklist Redis check failed (failing open). "
+            f"Revoked tokens may replay until Redis recovers. Error: {exc}"
+        )
+        return False  # Intentional: availability over strict revocation during Redis outage
 
 
 def extract_access_token(

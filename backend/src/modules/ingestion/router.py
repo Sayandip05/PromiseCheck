@@ -183,7 +183,13 @@ async def upload_audio_file(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Upload audio file (.mp3/.wav), transcribe via SpeechToTextConnector, and extract promises."""
+    MAX_AUDIO_SIZE = 200 * 1_000_000  # 200 MB
     content = await file.read()
+    if len(content) > MAX_AUDIO_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Audio file exceeds 200 MB limit.",
+        )
     stt = SpeechToTextConnector()
     transcript_text = await stt.transcribe_audio(content, filename=file.filename or "recording.mp3")
 

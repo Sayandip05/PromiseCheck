@@ -38,13 +38,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
         # 6. Content Security Policy (CSP)
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "img-src 'self' data: https:; "
-            "script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://api.groq.com;"
-        )
+        # SECURITY: 'unsafe-inline' is forbidden in production because it allows
+        # XSS payload execution via injected inline scripts.
+        # This is a pure API server — no HTML pages are served in production so
+        # no inline scripts or styles are ever needed.
+        # In development mode we relax for Swagger UI (/docs) which uses inline JS.
+        if settings.APP_ENV.lower() == "production":
+            csp = (
+                "default-src 'none'; "
+                "connect-src 'self'; "
+                "img-src 'self' data: https:; "
+                "frame-ancestors 'none';"
+            )
+        else:
+            # Development: allow inline for Swagger UI
+            csp = (
+                "default-src 'self'; "
+                "img-src 'self' data: https:; "
+                "script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "connect-src 'self' http://localhost:* ws://localhost:* "
+                "http://127.0.0.1:* ws://127.0.0.1:* https://api.groq.com;"
+            )
+        response.headers["Content-Security-Policy"] = csp
 
         return response
 

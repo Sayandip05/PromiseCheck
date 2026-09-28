@@ -140,8 +140,11 @@ async def evaluate_workspace_risk(
             at_risk_count += 1
         else:
             on_track_count += 1
-            if c.status not in ("delivered", "at-risk", "overdue"):
-                c.status = "on-track"
+            # Only move to "confirmed" when status is not already a meaningful one.
+            # "on-track" is NOT a valid DB status (not in VALID_STATUS_TRANSITIONS),
+            # so confirmed is the closest semantically-correct stable state.
+            if c.status not in ("delivered", "at-risk", "overdue", "confirmed", "blocked", "awaiting-review"):
+                c.status = "confirmed"
                 c.status_label = "On Track"
 
     await db.commit()

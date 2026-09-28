@@ -1,7 +1,5 @@
-"""Hosted LLM API client supporting Groq (primary) and Gemini (fallback)."""
+"""Hosted LLM API client — Groq only. Raises RuntimeError on any failure."""
 
-import json
-import os
 from typing import Optional
 
 import httpx
@@ -13,7 +11,12 @@ logger = get_logger("ai_client")
 
 
 class AIClient:
-    """Interface to configured LLM provider: Groq as primary, Gemini as fallback."""
+    """Thin wrapper around the Groq chat-completions API.
+
+    Only Groq is supported.  If the API key is missing, the HTTP call fails,
+    or the response is empty/unexpected, a ``RuntimeError`` is raised so that
+    callers (FastAPI endpoints) can return HTTP 503 and Celery tasks can retry.
+    """
 
     def __init__(
         self,
@@ -24,121 +27,89 @@ class AIClient:
         self.model = model or "llama-3.3-70b-versatile"
         self.groq_api_key = (
             settings.GROQ_API_KEY
-            or os.getenv("GROQ_API_KEY")
             or settings.LLM_API_KEY
-            or os.getenv("LLM_API_KEY")
             or ""
         )
-        self.gemini_api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY") or ""
 
     async def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Execute LLM generation via Groq API, falling back to Gemini if available."""
-        # 1. Primary: Groq API
-        if self.groq_api_key:
-            try:
-                logger.info(f"Calling Groq LLM API with model: {self.model}")
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
+        """Call Groq chat-completions API (async).
 
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {self.groq_api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": self.model,
-                            "messages": messages,
-                            "temperature": 0.1,
-                            "max_tokens": 1500,
-                        },
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        return data["choices"][0]["message"]["content"]
-                    else:
-                        logger.warning(
-                            f"Groq API returned status {response.status_code}: {response.text}"
-                        )
-            except Exception as e:
-                logger.error(f"Error calling Groq API: {e}")
+        Raises:
+            RuntimeError: if GROQ_API_KEY is missing, the HTTP call fails,
+                          the status code is not 200, or the returned text is empty.
+        """
+        if not self.groq_api_key:
+            raise RuntimeError("GROQ_API_KEY is not configured — cannot call LLM")
 
-        # 2. Fallback: Google Gemini API
-        if self.gemini_api_key:
-            try:
-                logger.info("Falling back to Google Gemini Flash API")
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_api_key}"
-                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-                payload = {"contents": [{"parts": [{"text": full_prompt}]}]}
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
 
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(url, json=payload)
-                    if response.status_code == 200:
-                        data = response.json()
-                        return data["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                logger.error(f"Error calling Gemini API: {e}")
+        logger.info(f"Calling Groq LLM API with model: {self.model}")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.groq_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": 0.1,
+                    "max_tokens": 1500,
+                },
+            )
 
-        # 3. Deterministic local extractor fallback
-        logger.info("Using local deterministic AI fallback")
-        return ""
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"Groq API returned HTTP {response.status_code}: {response.text[:300]}"
+            )
+
+        text = response.json()["choices"][0]["message"]["content"]
+        if not text or not text.strip():
+            raise RuntimeError("Groq API returned an empty response")
+
+        return text
 
     def generate_sync(self, prompt: str, system_prompt: str | None = None) -> str:
-        """Blocking HTTP call for Celery worker context (no asyncio event loop).
+        """Blocking Groq call for Celery worker context (no asyncio event loop).
 
-        Uses httpx.Client (synchronous) to call Groq or Gemini. Falls back to
-        an empty string, which causes PromiseExtractor to use the NLP fallback.
+        Raises:
+            RuntimeError: same conditions as :meth:`generate`.
         """
-        # 1. Primary: Groq API (synchronous)
-        if self.groq_api_key:
-            try:
-                logger.info(f"[Celery] Calling Groq LLM (sync) with model: {self.model}")
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
+        if not self.groq_api_key:
+            raise RuntimeError("GROQ_API_KEY is not configured — cannot call LLM")
 
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {self.groq_api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": self.model,
-                            "messages": messages,
-                            "temperature": 0.1,
-                            "max_tokens": 1500,
-                        },
-                    )
-                    if response.status_code == 200:
-                        return response.json()["choices"][0]["message"]["content"]
-                    else:
-                        logger.warning(
-                            f"[Celery] Groq API status {response.status_code}: {response.text}"
-                        )
-            except Exception as e:
-                logger.error(f"[Celery] Error calling Groq API (sync): {e}")
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
 
-        # 2. Fallback: Google Gemini API (synchronous)
-        if self.gemini_api_key:
-            try:
-                logger.info("[Celery] Falling back to Google Gemini Flash API (sync)")
-                url = (
-                    f"https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"gemini-1.5-flash:generateContent?key={self.gemini_api_key}"
-                )
-                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.post(url, json={"contents": [{"parts": [{"text": full_prompt}]}]})
-                    if response.status_code == 200:
-                        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                logger.error(f"[Celery] Error calling Gemini API (sync): {e}")
+        logger.info(f"[Celery] Calling Groq LLM (sync) with model: {self.model}")
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.groq_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": 0.1,
+                    "max_tokens": 1500,
+                },
+            )
 
-        logger.info("[Celery] Using local deterministic AI fallback (no API key available)")
-        return ""
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"[Celery] Groq API returned HTTP {response.status_code}: {response.text[:300]}"
+            )
+
+        text = response.json()["choices"][0]["message"]["content"]
+        if not text or not text.strip():
+            raise RuntimeError("[Celery] Groq API returned an empty response")
+
+        return text

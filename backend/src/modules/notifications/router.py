@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from connectors.email import EmailConnector
 from connectors.slack import SlackConnector
 from core.database import get_db
+from core.security import get_current_user_optional
 from modules.commitments.models import Commitment
+from modules.identity.models import User
 from modules.workspaces.service import get_active_workspace_id
 
 router = APIRouter(prefix="/notifications", tags=["Notifications & Alerts"])
@@ -37,9 +39,12 @@ class SendNotificationRequest(BaseModel):
 
 
 @router.get("", response_model=list[NotificationAlert])
-async def list_notifications(db: AsyncSession = Depends(get_db)):
+async def list_notifications(
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
     """List recent notification and alert events."""
-    ws_id = await get_active_workspace_id(db)
+    ws_id = await get_active_workspace_id(db, user)
     stmt = select(Commitment).where(Commitment.workspace_id == ws_id)
     result = await db.execute(stmt)
     commitments = result.scalars().all()

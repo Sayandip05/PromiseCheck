@@ -39,7 +39,20 @@ class ConnectIntegrationRequest(BaseModel):
     scope: Optional[str] = None
 
 
-# Stateful integration catalog for the workspace
+# ---------------------------------------------------------------------------
+# DEV-ONLY: in-memory integration state store.
+#
+# WORKSPACE_INTEGRATIONS holds the per-workspace connector catalogue in the
+# API worker process memory.  This means:
+#   * State resets on every worker restart / deploy.
+#   * Multiple worker replicas each have their own copy — connect/disconnect
+#     in one replica is invisible to the others.
+#
+# For a production deployment, replace this dict with a `workspace_integrations`
+# DB table (or a Redis hash keyed by workspace_id) so state survives restarts
+# and is consistent across replicas.  This is explicitly deferred because the
+# project is a portfolio demo — the connectors themselves are also stubs.
+# ---------------------------------------------------------------------------
 WORKSPACE_INTEGRATIONS: dict[str, list[IntegrationDTO]] = {}
 
 

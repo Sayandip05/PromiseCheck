@@ -11,7 +11,7 @@ from core.database import Base, TenantMixin
 class DeliveryEvidence(Base, TenantMixin):
     """Verified evidence proof record tying engineering work to customer commitments."""
 
-    __tablename__ = "delivery_evidence"
+    __tablename__ = "delivery_evidences"
 
     commitment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     commitment_title: Mapped[str] = mapped_column(String(255), nullable=False)

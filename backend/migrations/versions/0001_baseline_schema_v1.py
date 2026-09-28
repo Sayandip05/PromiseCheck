@@ -311,8 +311,30 @@ def upgrade() -> None:
     # Fix 5: composite index for paginated audit log queries
     op.create_index("ix_audit_events_ws_created", "audit_events", ["workspace_id", "created_at"], unique=False)
 
+    # =========================================================================
+    # outbox_events
+    # Fix 24: add missing table for transactional outbox pattern
+    # =========================================================================
+    op.create_table(
+        "outbox_events",
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("event_type", sa.String(100), nullable=False),
+        sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
+        sa.Column("dispatched_at", sa.DateTime(timezone=True), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_outbox_events_id"), "outbox_events", ["id"], unique=False)
+    op.create_index(op.f("ix_outbox_events_workspace_id"), "outbox_events", ["workspace_id"], unique=False)
+    # Composite index: dispatcher polls (status='pending' ORDER BY created_at) per workspace
+    op.create_index("ix_outbox_events_status_created", "outbox_events", ["status", "created_at"], unique=False)
+
 
 def downgrade() -> None:
+    op.drop_table("outbox_events")
     op.drop_table("audit_events")
     op.drop_table("delivery_evidences")
     op.drop_table("ingestion_jobs")

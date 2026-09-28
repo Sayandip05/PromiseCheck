@@ -466,7 +466,6 @@ Provider documentation and technical specifications for integrations. Revalidate
 
 - [Google Meet artifacts](https://developers.google.com/workspace/meet/api/guides/artifacts)
 - [Google Meet authorization](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize)
-- [Google Meet events](https://developers.google.com/workspace/events/guides/events-meet)
 - [Google Meet event delivery](https://developers.google.com/workspace/meet/api/guides/events-overview)
 - [Recall transcription](https://docs.recall.ai/docs/transcription)
 - [Jira delegated OAuth](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/)

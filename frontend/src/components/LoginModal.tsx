@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { PromiseCheckIcon } from './brand/PromiseCheckLogo';
 
 export type AuthMode = 'signup' | 'login' | 'contact';
 
@@ -74,9 +75,76 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
+  const googleClientId =
+    (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
+    '579731781607-95rdh3kfjuhreep49ap07nqu6jdkqe6b.apps.googleusercontent.com';
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const setupGoogleGsi = () => {
+      const g = (window as any).google;
+      if (g?.accounts?.id && googleClientId) {
+        try {
+          g.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: async (response: any) => {
+              if (response?.credential) {
+                setIsSubmitting(true);
+                setErrorMessage('');
+                try {
+                  await loginWithGoogle(response.credential);
+                  setIsSubmitted(true);
+                  setTimeout(() => {
+                    setIsSubmitted(false);
+                    onClose();
+                    if (onLoginSuccess) onLoginSuccess();
+                  }, 700);
+                } catch (err: any) {
+                  setErrorMessage(err.message || 'Google authentication failed.');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }
+            },
+          });
+        } catch (err) {
+          console.warn('Google GSI init failed:', err);
+        }
+      }
+    };
+
+    if ((window as any).google?.accounts?.id) {
+      setupGoogleGsi();
+    } else {
+      const interval = setInterval(() => {
+        if ((window as any).google?.accounts?.id) {
+          setupGoogleGsi();
+          clearInterval(interval);
+        }
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, googleClientId]);
+
   const handleGoogleAuth = async () => {
     setIsSubmitting(true);
     setErrorMessage('');
+    const g = (window as any).google;
+    if (g?.accounts?.id) {
+      try {
+        g.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            console.log('Google prompt status:', notification.getNotDisplayedReason?.());
+          }
+        });
+        setIsSubmitting(false);
+        return;
+      } catch (err) {
+        console.warn('Google prompt invocation error:', err);
+      }
+    }
+
     try {
       await loginWithGoogle(
         email || 'founder@acme.corp',
@@ -125,19 +193,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         {/* Brand Logo & Wordmark matching PromiseCheck */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <div className="relative w-8 h-8 flex items-center justify-center">
-            <svg 
-              viewBox="0 0 36 36" 
-              className="w-8 h-8 text-neutral-950 dark:text-white"
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="1.6"
-            >
-              <polygon points="18,3 31,10.5 31,25.5 18,33 5,25.5 5,10.5" />
-              <line x1="18" y1="3" x2="18" y2="33" />
-              <line x1="5" y1="10.5" x2="31" y2="25.5" />
-              <line x1="5" y1="25.5" x2="31" y2="10.5" />
-              <circle cx="18" cy="18" r="3" fill="currentColor" fillOpacity="0.2" />
-            </svg>
+            <PromiseCheckIcon className="w-8 h-8 text-neutral-950 dark:text-white" />
           </div>
           <span className="font-bold text-xl sm:text-[22px] tracking-tight">
             PromiseCheck

@@ -21,6 +21,7 @@ _high_priority_exchange = Exchange("high_priority", type="direct")
 _ingestion_exchange = Exchange("ingestion", type="direct")
 
 celery_app.conf.update(
+    include=["jobs.tasks"],
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",

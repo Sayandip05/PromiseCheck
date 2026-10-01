@@ -41,10 +41,10 @@ export const AuditLogView: React.FC = () => {
     <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-6xl mx-auto w-full">
       <div className="pb-6 border-b border-neutral-200 dark:border-neutral-800">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 dark:text-white">
-          Immutable Audit Log
+          Activity Log
         </h1>
         <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-          Cryptographically recorded log of approvals, outbound updates, and permission checks.
+          Chronological history of commitment updates, verifications, and delivery actions.
         </p>
       </div>
 

@@ -12,10 +12,12 @@ import {
   Building2,
   Sun,
   Moon,
+  History,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { DashboardView, Workspace } from '../../types/dashboard';
 import { Sidebar as AceternitySidebar, SidebarBody, SidebarLink } from '../ui/sidebar';
+import { PromiseCheckIcon } from '../brand/PromiseCheckLogo';
 
 interface SidebarProps {
   currentView: DashboardView;
@@ -34,18 +36,8 @@ interface SidebarProps {
 export const Logo = () => {
   return (
     <div className="font-normal flex items-center gap-2.5 py-1 px-1 relative z-20">
-      <div className="w-8 h-8 rounded-xl bg-neutral-900 flex items-center justify-center text-white shrink-0 shadow-xs">
-        <svg
-          viewBox="0 0 24 24"
-          className="w-4.5 h-4.5 fill-none stroke-white stroke-[2]"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="m12 3-8 4.5v9L12 21l8-4.5v-9L12 3Z" />
-          <path d="M12 12 4 7.5" />
-          <path d="m12 12 8-4.5" />
-          <path d="M12 12v9" />
-        </svg>
+      <div className="w-8 h-8 rounded-xl bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-900 shrink-0 shadow-xs">
+        <PromiseCheckIcon className="w-5 h-5" />
       </div>
       <motion.span
         initial={{ opacity: 0 }}
@@ -61,18 +53,8 @@ export const Logo = () => {
 export const LogoIcon = () => {
   return (
     <div className="font-normal flex items-center justify-center py-1 relative z-20 w-10 h-10 mx-auto">
-      <div className="w-8 h-8 rounded-xl bg-neutral-900 flex items-center justify-center text-white shrink-0 shadow-xs">
-        <svg
-          viewBox="0 0 24 24"
-          className="w-4.5 h-4.5 fill-none stroke-white stroke-[2]"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="m12 3-8 4.5v9L12 21l8-4.5v-9L12 3Z" />
-          <path d="M12 12 4 7.5" />
-          <path d="m12 12 8-4.5" />
-          <path d="M12 12v9" />
-        </svg>
+      <div className="w-8 h-8 rounded-xl bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-900 shrink-0 shadow-xs">
+        <PromiseCheckIcon className="w-5 h-5" />
       </div>
     </div>
   );
@@ -134,8 +116,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       isActive: currentView === 'integrations',
     },
     {
-      label: 'Audit log',
-      icon: <ShieldCheck className="text-neutral-700 dark:text-neutral-300 h-4.5 w-4.5 shrink-0" />,
+      label: 'Activity Log',
+      icon: <History className="text-neutral-700 dark:text-neutral-300 h-4.5 w-4.5 shrink-0" />,
       onClick: () => handleNavClick('audit-log'),
       isActive: currentView === 'audit-log',
     },

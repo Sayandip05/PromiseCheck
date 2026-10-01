@@ -5,6 +5,7 @@
 # Core Web Framework & ASGI
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
+python-multipart>=0.0.20
 
 # Data Validation & Settings
 pydantic[email]>=2.10.0
@@ -34,6 +35,10 @@ httpx>=0.28.0
 
 # Model Context Protocol (MCP) - Stateless Server & Tools
 fastmcp>=4.0.0
+
+# Image, Vector & Asset Processing
+pillow>=11.0.0
+vtracer>=0.6.0
 
 # Environment & Utilities
 python-dotenv>=1.0.1

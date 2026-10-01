@@ -22,6 +22,6 @@ class Customer(Base, TenantMixin):
     active_promises: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     health_score: Mapped[int] = mapped_column(Integer, default=95, nullable=False)
     recent_promise: Mapped[str] = mapped_column(String(255), default="", nullable=False)
-    due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    due_date: Mapped[str] = mapped_column(String(100), default="Upcoming", nullable=False)
     owner: Mapped[str] = mapped_column(String(255), default="Account Manager", nullable=False)
     domains_json: Mapped[dict] = mapped_column(JSONB, default=list, nullable=False)

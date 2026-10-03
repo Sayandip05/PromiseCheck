@@ -21,6 +21,9 @@ from core.security import (
 from modules.identity.models import Identity, RefreshToken, User
 from modules.identity.schemas import UserRegisterRequest, WorkspaceSummary
 from modules.workspaces.models import Membership, Workspace
+from core.logging import get_logger
+
+logger = get_logger("identity_service")
 
 
 class AuthService:
@@ -139,11 +142,14 @@ class AuthService:
         user = result.scalar_one_or_none()
 
         if not user or not user.password_hash or not verify_password(password, user.password_hash):
+            masked_email = f"{email[:3]}***@{email.split('@')[-1]}" if "@" in email else "unknown"
+            logger.warning(f"[auth] Failed login attempt for user={masked_email} (invalid_credentials)")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password.",
             )
         if not user.is_active:
+            logger.warning(f"[auth] Login rejected for deactivated user={user.id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is deactivated.",
@@ -229,6 +235,10 @@ class AuthService:
 
         # REUSE DETECTION: If token was already revoked or replaced, this is a replay / theft attack!
         if record.revoked_at is not None or record.replaced_by_jti is not None:
+            logger.warning(
+                f"[security] Refresh token reuse detected for family={record.family_id}. "
+                f"Revoking all sessions in token family."
+            )
             # Revoke entire token family immediately for security
             await db.execute(
                 update(RefreshToken)
@@ -253,6 +263,7 @@ class AuthService:
             record_exp = record.expires_at
 
         if record_exp < now:
+            logger.warning(f"[auth] Expired refresh token rejected for user={record.user_id}")
             record.revoked_at = now
             await db.commit()
             raise HTTPException(

@@ -206,17 +206,18 @@ async def test_audio_upload_size_limit_rejection():
 def test_registration_error_does_not_leak_email_pii(client: TestClient):
     """Verify duplicate user registration does not echo back email address (PII protection)."""
     unique_email = f"pii_check_{uuid.uuid4().hex[:8]}@example.com"
+    headers = {"X-Forwarded-For": f"10.88.{uuid.uuid4().int % 200}.{uuid.uuid4().int % 200}"}
     payload = {
         "email": unique_email,
         "password": "ValidPassword123!",
         "full_name": "Test User",
     }
     # Register first time
-    res1 = client.post("/api/v1/auth/register", json=payload)
+    res1 = client.post("/api/v1/auth/register", json=payload, headers=headers)
     assert res1.status_code == 201
 
     # Second registration attempt must return generic error without user's email
-    res2 = client.post("/api/v1/auth/register", json=payload)
+    res2 = client.post("/api/v1/auth/register", json=payload, headers=headers)
     assert res2.status_code == 400
     detail = res2.json().get("detail", "")
     assert detail == "An account with this email address already exists."

@@ -51,3 +51,16 @@ async def get_operations_status():
         active_workers=stats["active_workers"],
         system_status="operational",
     )
+
+
+from fastapi.responses import PlainTextResponse
+from core.metrics import metrics
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+async def get_prometheus_metrics() -> PlainTextResponse:
+    """Export standard Prometheus exposition format (version 0.0.4)."""
+    return PlainTextResponse(
+        content=metrics.generate_prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )

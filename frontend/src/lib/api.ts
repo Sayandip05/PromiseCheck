@@ -242,7 +242,7 @@ export const api = {
 
   customers: {
     list: () => request<any[]>('/customers'),
-    create: (data: { name: string; owner?: string }) =>
+    create: (data: { name: string; owner?: string; recent_promise?: string; due_date?: string }) =>
       request<any>('/customers', {
         method: 'POST',
         body: JSON.stringify(data),

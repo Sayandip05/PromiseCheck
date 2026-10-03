@@ -7,9 +7,11 @@ from typing import Callable
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from core.config import settings
 from core.logging import get_logger
+from core.metrics import metrics
 from core.redis import get_async_redis
 
 logger = get_logger("security_middleware")
@@ -95,9 +97,19 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                 headers={"X-Request-ID": request_id},
             )
 
-        process_time = (time.perf_counter() - start_time) * 1000
+        duration_sec = time.perf_counter() - start_time
+        process_time = duration_sec * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time"] = f"{process_time:.2f}ms"
+
+        # Record HTTP telemetry in Prometheus metrics collector
+        metrics.record_request(request.method, request.url.path, response.status_code, duration_sec)
+
+        # Performance Alert: flag slow requests exceeding 500ms threshold
+        if process_time > 500 and not request.url.path.startswith("/api/v1/events/stream"):
+            logger.warning(
+                f"[perf] Slow request: {request.method} {request.url.path} took {process_time:.2f}ms [id={request_id[:8]}]"
+            )
 
         # Suppress noisy healthcheck logs
         if not request.url.path.startswith("/healthz"):
@@ -109,76 +121,86 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
         return response
 
 
+from core.rate_limiter import SlidingWindowLimiter, TokenBucketLimiter, RateLimitResult
+
+
 class RateLimiterMiddleware(BaseHTTPMiddleware):
-    """Sliding window rate limiter using Redis with automatic local memory fallback.
+    """Dual-algorithm enterprise rate limiter.
     
-    Protects authentication endpoints from brute force and extraction from abuse.
+    - Sliding Window: Protects auth and high-frequency endpoints from boundary burst anomalies.
+    - Token Bucket: Smooths bursty traffic for compute-intensive file ingestion.
+    - Adds standard RFC headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset.
     """
 
-    # Stricter rate limits for sensitive endpoints: (max_requests, window_seconds)
-    LIMITS = {
-        "/api/v1/auth/login": (10, 60),      # 10 requests / 60s
-        "/api/v1/auth/register": (10, 60),   # 10 requests / 60s
-        "/api/v1/ingestion/upload": (30, 60),# 30 uploads / 60s
-        "default": (120, 60),                # 120 requests / 60s
-    }
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+        # Dedicated algorithm instances
+        self.auth_login_limiter = SlidingWindowLimiter(max_requests=5, window_seconds=60)
+        self.auth_register_limiter = SlidingWindowLimiter(max_requests=5, window_seconds=60)
+        self.upload_limiter = TokenBucketLimiter(capacity=10, refill_rate=0.5)  # 30/min sustained
+        self.default_limiter = SlidingWindowLimiter(max_requests=120, window_seconds=60)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Skip health probes and SSE stream from rate limiting
         path = request.url.path
+        # Bypass rate limiting for internal health probes and real-time SSE stream
         if path in ("/healthz", "/api/v1/health") or path.startswith("/api/v1/events/stream"):
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
-        max_reqs, window_secs = self.LIMITS.get(path, self.LIMITS["default"])
-        key = f"ratelimit:{client_ip}:{path}"
-        current_time = time.time()
+        client_ip = (
+            request.headers.get("x-forwarded-for")
+            or (request.client.host if request.client else "unknown")
+        )
+        if "," in client_ip:
+            client_ip = client_ip.split(",")[0].strip()
+        identifier = f"{client_ip}:{path}"
 
-        # Try Redis rate limiting first
-        rate_exceeded = False
-        try:
-            r = get_async_redis()
-            # Fix #4: Atomic pipeline — INCR and EXPIRE are sent in a single
-            # round-trip. expire(..., nx=True) sets the TTL only if it does NOT
-            # already exist, preventing the window from resetting on every hit.
-            # Previously the two-step INCR→EXPIRE had a race: concurrent requests
-            # could both INCR before either EXPIRE ran, leaving the key without a
-            # TTL and permanently banning the IP.
-            pipe = r.pipeline()
-            pipe.incr(key)
-            pipe.expire(key, window_secs, nx=True)
-            results = await pipe.execute()
-            current_hits = results[0]
-            if current_hits > max_reqs:
-                rate_exceeded = True
-        except Exception as redis_err:
-            # If Redis is unavailable, fail-open (let the request pass).
-            # The removed in-memory fallback was not safe across multiple Uvicorn
-            # worker processes — each had its own dict, allowing N× the limit.
+        # Route to appropriate algorithm
+        if path == "/api/v1/auth/login":
+            result: RateLimitResult = await self.auth_login_limiter.is_allowed(identifier)
+        elif path == "/api/v1/auth/register":
+            result = await self.auth_register_limiter.is_allowed(identifier)
+        elif path.startswith("/api/v1/ingestion"):
+            result = await self.upload_limiter.is_allowed(identifier)
+        else:
+            result = await self.default_limiter.is_allowed(identifier)
+
+        if not result.allowed:
+            metrics.record_rate_limit(path)
             logger.warning(
-                f"Rate limiter Redis unavailable (failing open) for {client_ip}: {redis_err}"
+                f"Rate limit exceeded ({result.strategy}) for IP {client_ip} on {path}. Retry after {result.retry_after}s"
             )
-
-        if rate_exceeded:
-            logger.warning(f"Rate limit exceeded for IP {client_ip} on {path}")
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={
                     "error": "Too Many Requests",
-                    "message": f"Rate limit exceeded. Please try again in {window_secs} seconds.",
-                    "retry_after": window_secs,
+                    "message": f"Rate limit exceeded. Please try again in {result.retry_after} seconds.",
+                    "retry_after": result.retry_after,
                 },
-                headers={"Retry-After": str(window_secs)},
+                headers={
+                    "Retry-After": str(result.retry_after),
+                    "X-RateLimit-Limit": str(result.limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(result.reset_after),
+                },
             )
 
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(result.limit)
+        response.headers["X-RateLimit-Remaining"] = str(result.remaining)
+        response.headers["X-RateLimit-Reset"] = str(result.reset_after)
+        return response
+
+
+from core.idempotency import IdempotencyMiddleware
 
 
 def register_middleware(app: FastAPI) -> None:
-    """Register all security and telemetry middleware onto the FastAPI application."""
+    """Register all security, telemetry, and idempotency middleware onto the FastAPI application."""
     # Outer layer: Security headers
     app.add_middleware(SecurityHeadersMiddleware)
     # Middle layer: Rate limiter
     app.add_middleware(RateLimiterMiddleware)
+    # Idempotency layer: Safe retries & duplicate prevention
+    app.add_middleware(IdempotencyMiddleware)
     # Inner layer: Request tracing & error interception
     app.add_middleware(RequestTracingMiddleware)

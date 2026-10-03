@@ -16,6 +16,7 @@ import modules.customers.models  # noqa: F401
 import modules.ingestion.models  # noqa: F401
 import modules.delivery.models  # noqa: F401
 import modules.outbox.models  # noqa: F401
+import modules.operations.models  # noqa: F401
 from core.logging import get_logger, setup_logging
 from jobs.celery_app import check_redis_health
 
@@ -105,6 +106,20 @@ async def readiness_probe(response: Response) -> dict:
             "redis": redis_msg,
         },
     }
+
+
+from fastapi.responses import PlainTextResponse
+from core.metrics import metrics
+
+
+@app.get("/metrics", response_class=PlainTextResponse, tags=["Telemetry"])
+@app.get("/api/v1/metrics", response_class=PlainTextResponse, tags=["Telemetry"])
+async def metrics_endpoint() -> PlainTextResponse:
+    """Export Prometheus metrics in standard exposition format (version 0.0.4)."""
+    return PlainTextResponse(
+        content=metrics.generate_prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 # Mount all feature module routers under /api/v1

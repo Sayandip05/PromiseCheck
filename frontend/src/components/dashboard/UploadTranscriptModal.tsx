@@ -12,13 +12,13 @@ export const UploadTranscriptModal: React.FC<UploadTranscriptModalProps> = ({
   onClose,
   onTranscriptUploaded,
 }) => {
-  if (!isOpen) return null;
-
   const [customer, setCustomer] = useState('Acme');
   const [meetingTitle, setMeetingTitle] = useState('Customer Sync & Feature Review');
   const [fileSelected, setFileSelected] = useState<string | null>('acme_onboarding_transcript.vtt');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDone, setIsDone] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleUpload = (e: React.FormEvent) => {
     e.preventDefault();

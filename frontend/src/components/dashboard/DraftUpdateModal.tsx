@@ -15,13 +15,13 @@ export const DraftUpdateModal: React.FC<DraftUpdateModalProps> = ({
   commitment,
   onSendUpdate,
 }) => {
-  if (!isOpen || !commitment) return null;
-
   const [destination, setDestination] = useState<'slack' | 'email'>('slack');
   const [slackChannel, setSlackChannel] = useState('#customer-commitments');
   const [emailRecipient, setEmailRecipient] = useState('lead@acme.corp');
   const [isApproved, setIsApproved] = useState(false);
   const [isSent, setIsSent] = useState(false);
+
+  if (!isOpen || !commitment) return null;
 
   const defaultMessage = `Hi ${commitment.customer} team,
 

@@ -14,13 +14,13 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
   onClose,
   workspace,
 }) => {
-  if (!isOpen) return null;
-
   const [channel, setChannel] = useState('#customer-commitments');
   const [notifyConflicts, setNotifyConflicts] = useState(true);
   const [notifyOverdue, setNotifyOverdue] = useState(true);
   const [notifyNewPromises, setNotifyNewPromises] = useState(true);
   const [testSent, setTestSent] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleSendTest = () => {
     setTestSent(true);

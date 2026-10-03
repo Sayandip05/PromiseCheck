@@ -13,14 +13,14 @@ export const AddCommitmentModal: React.FC<AddCommitmentModalProps> = ({
   onClose,
   onAddCommitment,
 }) => {
-  if (!isOpen) return null;
-
   const [title, setTitle] = useState('');
   const [customer, setCustomer] = useState('Acme');
   const [ownerName, setOwnerName] = useState('Maya Chen');
   const [promisedDate, setPromisedDate] = useState('2026-10-15');
   const [quote, setQuote] = useState('');
   const [ticketId, setTicketId] = useState('');
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

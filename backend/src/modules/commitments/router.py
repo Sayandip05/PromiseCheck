@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -442,14 +442,39 @@ async def create_commitment(
     return _to_dto(commitment)
 
 
+@router.get("/{commitment_id}", response_model=CommitmentDTO)
+async def get_commitment(
+    commitment_id: uuid.UUID,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve an individual commitment by UUID with workspace tenancy authorization."""
+    c = await db.get(Commitment, commitment_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Commitment not found")
+
+    caller_ws_id = await get_active_workspace_id(db, user)
+    if c.workspace_id != caller_ws_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this commitment.",
+        )
+
+    response.headers["ETag"] = f'W/"{c.id}:{int(c.updated_at.timestamp())}"'
+    return _to_dto(c)
+
+
 @router.patch("/{commitment_id}", response_model=CommitmentDTO)
 async def update_commitment(
     commitment_id: uuid.UUID,
     payload: CommitmentUpdateRequest,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Update title, status, or date of a commitment.
+    """Update title, status, or date of a commitment with optimistic concurrency control.
 
     Fix #9: Verifies the commitment belongs to the caller's workspace before
     allowing any mutation. Previously any token holder could PATCH any
@@ -467,6 +492,19 @@ async def update_commitment(
             detail="You do not have permission to modify this commitment.",
         )
 
+    # Optimistic Concurrency Control (OCC) via If-Match / ETag
+    current_etag = f'W/"{c.id}:{int(c.updated_at.timestamp())}"'
+    if_match = request.headers.get("if-match")
+    if if_match and if_match.strip() not in (current_etag, "*"):
+        logger.warning(
+            f"[occ] 412 Precondition Failed for commitment={c.id}. "
+            f"Client If-Match='{if_match}' does not match current ETag='{current_etag}'"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail="Precondition Failed: Resource has been modified concurrently. Please reload latest state.",
+        )
+
     if payload.title is not None:
         c.title = payload.title
     if payload.customer is not None:
@@ -476,6 +514,10 @@ async def update_commitment(
     if payload.status is not None:
         allowed = VALID_STATUS_TRANSITIONS.get(c.status, {c.status})
         if payload.status not in allowed:
+            logger.warning(
+                f"[commitments] 422 Invalid status transition rejected for commitment={c.id}: "
+                f"'{c.status}' -> '{payload.status}'"
+            )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid status transition from '{c.status}' to '{payload.status}'.",
@@ -511,6 +553,7 @@ async def update_commitment(
         "COMMITMENT_UPDATED",
         {"id": str(c.id), "title": c.title, "status": c.status},
     )
+    response.headers["ETag"] = f'W/"{c.id}:{int(c.updated_at.timestamp())}"'
     return _to_dto(c)
 
 

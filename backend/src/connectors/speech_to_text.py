@@ -29,8 +29,8 @@ class SpeechToTextConnector(BaseConnector):
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
         key = credentials.get("api_key", self.api_key)
         if not key:
-            logger.info("[Speech-to-Text] No API key supplied. Operating in fluent pre-credential mode.")
-            return True
+            logger.warning("[Speech-to-Text] No API key supplied — credentials not configured.")
+            return False
         return True
 
     async def transcribe_audio(self, audio_bytes: bytes, filename: str = "meeting.mp3") -> str:

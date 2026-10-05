@@ -26,8 +26,8 @@ class ExternalMCPConnector(BaseConnector):
         """Validate connectivity to remote MCP server."""
         url = credentials.get("endpoint_url") or self.endpoint_url
         if not url:
-            logger.info("[External MCP] No endpoint URL supplied. Fluent fallback active.")
-            return True
+            logger.warning("[External MCP] No endpoint URL supplied — credentials not configured.")
+            return False
         validate_no_ssrf(url)  # SSRF guard: block private/internal IPs (raises HTTPException)
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:

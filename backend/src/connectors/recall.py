@@ -30,8 +30,8 @@ class RecallConnector(BaseConnector):
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
         key = credentials.get("api_key", self.api_key)
         if not key:
-            logger.info("[Recall.ai] No API key supplied. Operating in fluent pre-credential mode.")
-            return True
+            logger.warning("[Recall.ai] No API key supplied — credentials not configured.")
+            return False
 
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:

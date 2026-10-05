@@ -73,3 +73,48 @@ def test_unknown_provider_returns_404(client: TestClient):
     )
     assert resp.status_code == 404
     assert "not found" in resp.json()["detail"].lower()
+
+
+def test_test_integration_endpoints_for_all_providers(client: TestClient):
+    """Verify POST /api/v1/integrations/{provider}/test works across all 6 integrations."""
+    # 1. Slack test
+    slack_resp = client.post(
+        "/api/v1/integrations/slack/test",
+        json={"channel": "#customer-commitments", "message": "Test ping"},
+    )
+    assert slack_resp.status_code == 200
+    assert slack_resp.json()["success"] is True
+    assert slack_resp.json()["provider"] == "slack"
+
+    # 2. Jira test
+    jira_resp = client.post(
+        "/api/v1/integrations/jira/test",
+        json={"domain": "acme.atlassian.net", "email": "dev@acme.corp", "api_token": "token123"},
+    )
+    assert jira_resp.status_code == 200
+    assert jira_resp.json()["provider"] == "jira"
+
+    # 3. Linear test
+    linear_resp = client.post(
+        "/api/v1/integrations/linear/test",
+        json={"api_key": "lin_api_test_key"},
+    )
+    assert linear_resp.status_code == 200
+    assert linear_resp.json()["provider"] == "linear"
+
+    # 4. Recall.ai test
+    recall_resp = client.post(
+        "/api/v1/integrations/recall/test",
+        json={"region": "us-west-2", "bot_name": "Test Bot", "meeting_url": "https://meet.google.com/xyz-abc"},
+    )
+    assert recall_resp.status_code == 200
+    assert recall_resp.json()["provider"] == "recall"
+
+    # 5. Google Meet test
+    meet_resp = client.post(
+        "/api/v1/integrations/google_meet/test",
+        json={},
+    )
+    assert meet_resp.status_code == 200
+    assert meet_resp.json()["provider"] == "google_meet"
+

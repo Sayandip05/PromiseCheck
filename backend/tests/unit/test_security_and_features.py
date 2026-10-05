@@ -43,71 +43,67 @@ async def test_all_connectors_fluent_dual_mode():
     """Verify all 11 connectors run smoothly without throwing exceptions in mock fallback mode."""
     # 1. Jira
     jira = JiraConnector()
-    assert await jira.verify_credentials({}) is True
+    assert await jira.verify_credentials({}) is False
     res = await jira.get_ticket("ENG-101")
     assert res["key"] == "ENG-101"
 
-
     # 2. Linear
     linear = LinearConnector()
-    assert await linear.verify_credentials({}) is True
+    assert await linear.verify_credentials({}) is False
     res = await linear.get_issue("LIN-42")
     assert res["identifier"] == "LIN-42"
 
     # 3. Slack
     slack = SlackConnector()
-    assert await slack.verify_credentials({}) is True
+    assert await slack.verify_credentials({}) is False
     res = await slack.post_message("Test alert", channel="#alerts")
     assert "delivered" in res["status"]
 
-
     # 4. Email
     email = EmailConnector()
-    assert await email.verify_credentials({}) is True
+    assert await email.verify_credentials({}) is False
     res = await email.send_email("client@acme.corp", "Update", "Body content")
     assert "sent" in res["status"]
 
     # 5. Google Meet
     gmeet = GoogleMeetConnector()
-    assert await gmeet.verify_credentials({}) is True
+    assert await gmeet.verify_credentials({}) is False
     res = await gmeet.list_recent_meetings()
     assert len(res) > 0
 
     # 6. Gmail
     gmail = GmailConnector()
-    assert await gmail.verify_credentials({}) is True
+    assert await gmail.verify_credentials({}) is False
     res = await gmail.send_draft_update("client@acme.corp", "Update", "Body")
     assert "sent" in res["status"]
 
     # 7. Google Calendar
     gcal = GoogleCalendarConnector()
-    assert await gcal.verify_credentials({}) is True
+    assert await gcal.verify_credentials({}) is False
     res = await gcal.create_deadline_event("SSO SLA", "2026-10-15", "Delivery deadline")
     assert "status" in res
 
     # 8. Google Drive
     gdrive = GoogleDriveConnector()
-    assert await gdrive.verify_credentials({}) is True
+    assert await gdrive.verify_credentials({}) is False
     res = await gdrive.search_documents("SLA Agreement")
     assert len(res) > 0
 
     # 9. External MCP
     mcp = ExternalMCPConnector()
-    assert await mcp.verify_credentials({}) is True
+    assert await mcp.verify_credentials({}) is False
     tools = await mcp.list_tools()
     assert len(tools) > 0
 
-
     # 10. Speech-To-Text
     stt = SpeechToTextConnector()
-    assert await stt.verify_credentials({}) is True
+    assert await stt.verify_credentials({}) is False
     trans = await stt.transcribe_audio(b"fake audio data", "audio.mp3")
     assert isinstance(trans, str) and len(trans) > 0
 
-
     # 11. Recall
     recall = RecallConnector()
-    assert await recall.verify_credentials({}) is True
+    assert await recall.verify_credentials({}) is False
     bot = await recall.create_bot("https://meet.google.com/xyz-abc")
     assert "id" in bot
 

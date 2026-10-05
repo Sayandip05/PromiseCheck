@@ -12,7 +12,7 @@ External dependencies include identity services, provider accounts, consent, mee
 
 ### Scope interpretation
 
-The required provider catalog is Google identity/OIDC, Calendar, native Meet, Drive, Gmail, Recall capture for Meet/Zoom/Teams, uploaded transcripts/audio, speech-to-text, Jira, Linear, Slack, email delivery, PromiseCheck MCP server and controlled external MCP client integration. Google Workspace scopes and implementation approvals are determined per capability. New integrations require a connector contract and acceptance tests before being advertised.
+The required provider catalog is Google identity/OIDC, Calendar, native Meet, Drive, Gmail, uploaded transcripts/audio, speech-to-text, Jira, Linear, Slack, email delivery, PromiseCheck MCP server, controlled external MCP client integration, and the future-scope Recall.ai autonomous meeting bot across Meet/Zoom/Teams. Google Workspace scopes and implementation approvals are determined per capability. New integrations require a connector contract and acceptance tests before being advertised.
 
 A customer does not need to connect every provider. Product support is mandatory; customer authorization and use remain deliberate. Capture routing selects one authorized route per meeting, with explicit fallback rules to avoid duplicate recording and billing.
 
@@ -24,7 +24,7 @@ A customer does not need to connect every provider. Product support is mandatory
 | FR-02 | Workspace membership, roles, team and record grants. | A user cannot read or mutate another tenant through any interface. |
 | FR-03 | Provider connect, resource selection, refresh, reconnect and disconnect. | Grant lifecycle and revoked access exercised per connector. |
 | FR-04 | Discover and schedule authorized meeting capture. | Calendar cancellation/rescheduling updates capture without duplication. |
-| FR-05 | Native Meet transcripts, Recall across three meeting platforms, uploads and speech conversion. | Real-source ingestion plus missing transcript, denied admission and malformed upload cases. |
+| FR-05 | Ingestion via uploads, speech conversion, and future-scope Recall autonomous meeting bot across Zoom, Meet, and Teams. | Real-source ingestion plus missing transcript, denied admission and malformed upload cases. |
 | FR-06 | Selected Gmail thread ingestion and updates. | Duplicate/revised emails preserve stable source identity and review history. |
 | FR-07 | Normalize source segments and preserve evidence lineage. | Every extracted quote resolves to an immutable source version and segment. |
 | FR-08 | Extract candidate promises with conditions and uncertainty. | Reviewed evaluation set meets NFR quality thresholds. |
@@ -171,9 +171,51 @@ Direct Meet entry retrieval and Drive file download can require different scopes
 
 ### Bot and upload capture
 
-Recall connector creates an authorized capture job for an eligible selected meeting, tracks admission/recording/transcription states, and retrieves final artifacts. Persist capture authorization and participant-notice configuration. Admission refusal or recording restrictions remain visible failures. Provider keys never go to React. Recall documents bot-based transcription and final artifact retrieval in its [transcription guide](https://docs.recall.ai/docs/transcription).
+#### 1. Upload capture (current baseline)
+Upload flow: authorize actor and quota, issue a private upload destination, validate actual media type and size, quarantine/scan files, normalize (for VTT, SRT, JSON, TXT) or invoke speech-to-text (Deepgram nova-2), then schedule extraction. Reject unsupported content and avoid fetching arbitrary user-supplied URLs. Presigned destinations are server-selected and short-lived.
 
-Upload flow: authorize actor and quota, issue a private upload destination, validate actual media type and size, quarantine/scan files, normalize or invoke speech-to-text, then schedule extraction. Reject unsupported content and avoid fetching arbitrary user-supplied URLs. Presigned destinations are server-selected and short-lived.
+#### 2. Recall.ai autonomous meeting bot (future scope evolution)
+To eliminate manual upload friction and achieve zero-click meeting capture across multi-platform client calls, PromiseCheck integrates Recall.ai as our autonomous meeting bot provider:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Cal as Google Calendar Sync
+    participant Fast as FastAPI (/meetings/dispatch-bot)
+    participant Celery as Celery Scheduler / Worker
+    participant Recall as Recall.ai API
+    participant Conf as Zoom / Meet / Teams
+    participant Webhook as FastAPI (/events/recall)
+    participant Outbox as Transactional Outbox
+    participant LLM as Groq / Llama Extraction Pipeline
+
+    Cal->>Fast: Detect upcoming customer call with conference link
+    Fast->>Recall: POST /bot/ (meeting_url, bot_name, transcription_options)
+    Recall-->>Fast: Bot instance (id, status="joining_call")
+    Recall->>Conf: Bot enters meeting lobby / waiting room
+    Conf-->>Recall: Host admits bot
+    Recall->>Conf: Announce recording consent (in-meeting chat / audio chime)
+    Note over Recall,Conf: Real-time isolated audio streaming & speaker diarization
+    Conf-->>Recall: Meeting terminates / participants depart
+    Recall->>Recall: Generate diarized transcript JSON with timestamps
+    Recall->>Webhook: POST /events/recall (bot.status_change, status="done")
+    Webhook->>Outbox: Record verified event receipt & commit
+    Outbox->>Celery: Dispatch ingestion task (source_type="recall_bot")
+    Celery->>Recall: GET /bot/{id}/transcript/
+    Celery->>LLM: Stream dialogue segments for commitment extraction
+    LLM-->>Celery: Candidate promises with exact speaker quotes
+    Celery->>Fast: Populate Review Queue with evidence lineage
+```
+
+- **Zero-Friction Autonomous Capture**: Virtual participant bot enters scheduled customer meetings across **Zoom, Google Meet, and Microsoft Teams**, eliminating manual export and upload steps.
+- **Accurate Speaker Attribution**: Diarized audio channels map speech segments directly to attendees, ensuring high-confidence speaker attribution for commitment candidates.
+- **State Machine & Error Handling**:
+  - `joining_call` → `in_waiting_room`: If host denies admission or lobby timeout (5 min) expires, records `admission_denied` status and notifies workspace owner without throwing unhandled exceptions.
+  - `in_call_recording`: Bot delivers recording consent notifications in compliance with jurisdiction wiretapping policies.
+  - `done`: Triggered via webhook, pulling finalized transcript JSON into durable ingestion queue.
+  - `fatal`: Provider or network failure triggers non-blocking fallback to manual transcript or audio file uploads.
+- **Webhook Security & Deduplication**: Webhooks sent to `/events/recall` require cryptographic HMAC signature verification (`X-Recall-Signature`). Duplicate delivery protection uses Redis key caching (`recall:evt:{id}`) and PostgreSQL unique event receipts.
+- **Credential Storage**: Recall API keys remain strictly server-side (`RECALL_API_KEY`, `RECALL_REGION`), encrypted at rest, and are never exposed to browser clients.
 
 ### Connector contract
 
@@ -393,6 +435,7 @@ All decisions are accepted for the target design, not asserted to be implemented
 | 012 | Delivery verification is distinct from ticket completion. | Customer availability may lag engineering work. | Reliable customer-specific enablement signals permit automated verification. |
 | 013 | Hosted model and speech APIs behind ports. | Keeps local resource demands modest and permits provider replacement. | Cost, data-residency or latency evidence supports self-hosting. |
 | 014 | Full release scope with sequential acceptance gates. | Build order manages complexity without omitting MCP/integrations. | User explicitly approves a changed product scope. |
+| 015 | Recall.ai autonomous meeting bot as future capture evolution. | Eliminates manual upload friction; provides universal Zoom/Meet/Teams coverage and per-participant diarization without enterprise recording restrictions. | Customer recording regulations or provider API pricing changes. |
 
 ## 15. Implementation completion checklist
 

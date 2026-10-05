@@ -17,6 +17,7 @@ PromiseCheck helps SaaS teams capture promises made to customers, assign account
 - [System overview](#system-overview)
 - [Core modules](#core-modules)
 - [Integration catalog](#integration-catalog)
+- [Future Scope: Recall.ai Autonomous Meeting Bot](#future-scope-recallai-autonomous-meeting-bot)
 - [AI and MCP](#ai-and-mcp)
 - [Scalable repository layout](#scalable-repository-layout)
 - [Development and configuration](#development-and-configuration)
@@ -78,7 +79,7 @@ mindmap
 | --- | --- |
 | Identity | OIDC login, server sessions, secure logout, invitations, membership lifecycle, administrative MFA through the identity provider. |
 | Access | Workspace isolation, roles, record grants, source visibility, server-enforced permissions on HTTP, jobs, search, and MCP. |
-| Capture | Native Google Meet ingestion, Recall-based Meet/Zoom/Teams capture, transcript upload, audio upload with speech-to-text, selected Gmail conversations, Calendar meeting discovery. |
+| Capture | Native Google Meet ingestion, transcript upload, audio upload with speech-to-text, selected Gmail conversations, Calendar meeting discovery, and future-scope Recall.ai autonomous meeting bot (Meet/Zoom/Teams). |
 | Review | Candidate promises, uncertain speaker/customer/date review, confirmed ticket links, rejected candidates, immutable revision history. |
 | Engineering | Jira and Linear initial sync, change processing, date-field mapping, blockers, multiple tickets per promise, fresh-state reconciliation. |
 | Risk | Date conflicts, approaching deadlines, overdue promises, blockers, missing delivery information, stale evidence, configurable escalation. |
@@ -173,7 +174,7 @@ Every connector below is a required product deliverable. A customer may use only
 | Google Calendar | Discover selected meetings and scheduled capture | User-authorized API access; maintain event identity and time changes. | Selected meeting is scheduled, rescheduled and canceled correctly. |
 | Google Meet | Retrieve native generated transcripts | User OAuth; Workspace Events through Pub/Sub; fetch entries and reconcile. | Real authorized meeting transcript imports with speaker/time evidence. |
 | Google Drive | Import authorized Meet artifacts and user-selected files | Scope-minimized access; retain original source ID and permissions. | Eligible file imports; denied/revoked access remains denied. |
-| Recall.ai | Meeting capture and transcription for Meet, Zoom, Teams | Backend provider key; configured bot capture; provider events and artifact retrieval. | Controlled real meetings captured on each platform, including admission failure. |
+| Recall.ai | Autonomous meeting bot capture for Meet, Zoom, Teams *(Future Scope)* | Backend provider key; configured bot dispatch; webhook event handling and artifact retrieval. | End-to-end bot admission, in-call recording, webhook status transition, and automated candidate commitment extraction. |
 | Transcript upload | Import exported conversations | Authenticated upload, file validation, normalization. | Supported formats and malformed files are tested. |
 | Audio upload / speech-to-text | Convert authorized recordings | Private upload; worker invokes configured hosted speech provider. | Supported audio produces evidence segments; unsupported files fail clearly. |
 | Gmail | Extract commitments from selected email conversations | Separate consent and selection; cursor/history synchronization with reconciliation. | Thread revision and duplicate message handled without duplicate commitment. |
@@ -185,6 +186,85 @@ Every connector below is a required product deliverable. A customer may use only
 | MCP client gateway | Agent access to configured external tools | Admin allowlist, server authentication, capability contract and scoped tool execution. | At least one real configured server passes contract, denial and timeout tests. |
 
 Provider registration, credentials, OAuth verification, account eligibility, webhook capabilities and recording access are external launch dependencies. The product must show these prerequisites honestly. It must never fabricate a transcript or label synthetic data as a successful live integration.
+
+## Future Scope: Recall.ai Autonomous Meeting Bot
+
+As part of the PromiseCheck product evolution roadmap, **Recall.ai Autonomous Meeting Bot** integration is earmarked as our primary future capture milestone. This transition moves customer promise capture from manual transcript/audio file uploads to fully autonomous, zero-friction meeting presence.
+
+### 1. How It Improves the Product
+
+- **Zero-Friction Ingestion**: Today, users manually export transcripts from Google Meet/Zoom/Teams or record and upload audio files into PromiseCheck. With Recall.ai, a virtual participant bot automatically enters client calls, captures dialogue, and triggers downstream extraction without any manual human intervention.
+- **Universal Cross-Platform Parity**: Enterprise sales and customer success teams interface with clients across varying platforms. Recall.ai provides unified, headless bot capture across **Zoom, Google Meet, and Microsoft Teams**, eliminating the need for expensive enterprise recording licenses or platform-specific bots.
+- **High-Fidelity Speaker Diarization**: Generic audio transcripts often confuse who made a promise. Recall.ai captures isolated audio streams directly from the meeting platform's media pipeline, enabling high-fidelity speaker diarization. This ensures the AI extraction engine attributes promises to the exact speaker (e.g., Sales Lead vs. Client Lead) with high confidence.
+- **Automated Calendar Dispatch**: Leveraging PromiseCheck's existing Google Calendar synchronization, meetings discovered with video conference links (Zoom, Meet, Teams) automatically schedule bot dispatch 2 minutes prior to the scheduled start time.
+
+### 2. Architecture & Ingestion Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Cal as Google Calendar Sync
+    participant API as PromiseCheck API
+    participant Bot as Recall.ai Meeting Bot
+    participant Conf as Zoom / Meet / Teams
+    participant Hook as Webhook Receiver (/events/recall)
+    participant Worker as Celery Ingestion Worker
+    participant LLM as Groq / Llama Extraction Pipeline
+    participant Review as Review Queue
+
+    Cal->>API: Discover upcoming meeting with video URL
+    API->>Bot: Schedule Bot Dispatch (meeting_url, bot_name)
+    Bot->>Conf: Bot joins call & requests admission
+    Conf-->>Bot: Host admits bot to call room
+    Bot->>Conf: Broadcast chat and audio recording notice
+    Note over Bot,Conf: Meeting in session: isolated audio capture & diarization
+    Conf-->>Bot: Call terminates
+    Bot->>Bot: Finalize transcript & speaker diarization
+    Bot->>Hook: Webhook event: bot.status_change (status="done")
+    Hook->>Worker: Enqueue background ingestion job
+    Worker->>Bot: Fetch diarized transcript JSON
+    Worker->>LLM: Pass normalized dialogue segments
+    LLM-->>Worker: Extracted candidate commitments
+    Worker->>Review: Populate Review Queue with evidence quotes
+```
+
+### 3. State Machine & Operational Lifecycle
+
+The Recall.ai bot transitions through a deterministic state machine managed by PromiseCheck's background workers:
+
+| State | Trigger | Description & Error Handling |
+| --- | --- | --- |
+| `scheduled` | Calendar sync or on-demand dispatch | Bot dispatch record created in PostgreSQL; scheduled in Celery Beat. |
+| `joining_call` | 2 minutes prior to meeting start | Headless bot connects to Zoom, Meet, or Teams URL. |
+| `in_waiting_room` | Bot enters meeting lobby | Bot waits for host admission. If host denies entry or 5-minute timeout expires, status marks `admission_denied` with non-blocking toast alert. |
+| `in_call_recording` | Host admits bot | Bot broadcasts recording consent notice (in-meeting chat and/or audio chime) and streams media. |
+| `call_ended` | Meeting terminates | Bot disconnects cleanly when host ends meeting or human participants depart. |
+| `transcribing` | Post-call processing | Recall.ai speech-to-text pipeline processes multi-party audio into diarized transcript segments. |
+| `done` | Artifacts ready | Webhook fires `bot.status_change` with `status: done`, triggering Celery ingestion task. |
+| `fatal` / `failed` | Connection or platform error | Error logged; falls back to manual transcript/audio upload without breaking the workspace. |
+
+### 4. Privacy, Compliance & Participant Consent
+
+- **Notice & Consent**: The bot identifies itself clearly (e.g., `PromiseCheck Notetaker (Recording)`). Configurable in-meeting chat messages notify attendees: *"This meeting is recorded by PromiseCheck to track commitments and action items."*
+- **Tenant Control**: Workspace admins can toggle bot recording per customer domain, internal tag, or specific meeting type.
+- **Host Authority**: Meeting hosts can deny bot admission or remove the bot at any time.
+- **Data Retention & Encryption**: Raw audio recordings are discarded or purged according to workspace retention policies; only normalized speaker evidence snippets required for commitment verification are stored encrypted in PostgreSQL.
+
+### 5. API & Webhook Specifications
+
+- **Dispatch Endpoint**: `POST /api/v1/meetings/dispatch-bot`
+  ```json
+  {
+    "meeting_url": "https://meet.google.com/xyz-abc-def",
+    "meeting_title": "Acme Corp Q3 Review",
+    "bot_name": "PromiseCheck Notetaker",
+    "customer_id": "cust_123"
+  }
+  ```
+- **Webhook Endpoint**: `POST /events/recall`
+  - Signed via `X-Recall-Signature` header (HMAC-SHA256).
+  - Idempotent event processing via Redis deduplication key `recall:webhook:{event_id}`.
+- **Graceful Fallback**: If Recall.ai credentials are unconfigured or admission is denied, PromiseCheck falls back seamlessly to manual transcript upload or Deepgram audio speech-to-text with zero workflow interruption.
 
 ## AI and MCP
 
@@ -439,7 +519,7 @@ Every phase is mandatory for the full release.
 | 1. Foundation | Repository, CI, auth, membership, data model, policy, audit. | Cross-workspace and role tests pass. |
 | 2. Source pipeline | Uploads, event ledger, outbox, workers, normalized evidence. | Retries and duplicate deliveries preserve one logical result. |
 | 3. Promise workflow | Extraction, customer mapping, review, revisions, search. | Evaluation targets and review workflow pass. |
-| 4. Real sources | Meet, Calendar, Drive, Gmail, Recall on all three platforms, audio speech service. | Authorized real-source acceptance per catalog. |
+| 4. Real sources | Meet, Calendar, Drive, Gmail, audio speech service; Recall bot capture (future scope milestone). | Authorized real-source acceptance per catalog. |
 | 5. Delivery monitoring | Jira and Linear, field mapping, risks, deadlines, delivery evidence. | Real ticket changes and verified fulfillment work end-to-end. |
 | 6. Communication | Slack, email, exact draft approval, failure recovery. | No external send without valid approval; ambiguous sends handled. |
 | 7. Agent and MCP | Bounded investigation, MCP server, controlled MCP client. | Tool authorization and external-client end-to-end tests pass. |

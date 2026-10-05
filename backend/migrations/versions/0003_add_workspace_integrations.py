@@ -20,6 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    if "workspace_integrations" in inspector.get_table_names():
+        return
+
     op.create_table(
         "workspace_integrations",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),

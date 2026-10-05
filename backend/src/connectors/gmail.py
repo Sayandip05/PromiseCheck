@@ -28,9 +28,18 @@ class GmailConnector(BaseConnector):
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
         token = credentials.get("access_token", self.access_token)
         if not token:
-            logger.info("[Gmail] No token supplied. Operating in fluent pre-credential mode.")
-            return True
-        return True
+            logger.warning("[Gmail] No access token supplied — credentials not configured.")
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                return res.status_code == 200
+        except Exception as exc:
+            logger.warning(f"[Gmail] Token verification failed: {exc}")
+            return False
 
     async def send_draft_update(
         self,

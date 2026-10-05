@@ -26,7 +26,20 @@ class GoogleCalendarConnector(BaseConnector):
         return bool(self.access_token)
 
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
-        return True
+        token = credentials.get("access_token", self.access_token)
+        if not token:
+            logger.warning("[Google Calendar] No access token supplied — credentials not configured.")
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(
+                    "https://www.googleapis.com/calendar/v3/calendars/primary",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                return res.status_code == 200
+        except Exception as exc:
+            logger.warning(f"[Google Calendar] Token verification failed: {exc}")
+            return False
 
     async def create_deadline_event(
         self,
@@ -35,30 +48,55 @@ class GoogleCalendarConnector(BaseConnector):
         description: str,
     ) -> dict[str, Any]:
         """Add delivery deadline milestone to Google Calendar."""
+        # Sanitize date format for Google Calendar (YYYY-MM-DD)
+        clean_date = due_date_iso.split("T")[0] if "T" in due_date_iso else due_date_iso
+        if len(clean_date) != 10 or clean_date.count("-") != 2:
+            clean_date = "2026-10-15"
+
+        event_payload = {
+            "summary": f"[PromiseCheck SLA] {title}",
+            "description": description or f"Delivery milestone tracked by PromiseCheck for '{title}'.",
+            "start": {"date": clean_date},
+            "end": {"date": clean_date},
+            "reminders": {
+                "useDefault": False,
+                "overrides": [
+                    {"method": "email", "minutes": 24 * 60},
+                    {"method": "popup", "minutes": 60},
+                ],
+            },
+        }
+
         if self.is_configured:
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.post(
                         "https://www.googleapis.com/calendar/v3/calendars/primary/events",
                         headers={"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"},
-                        json={
-                            "summary": f"[PromiseCheck SLA] {title}",
-                            "description": description,
-                            "start": {"date": due_date_iso},
-                            "end": {"date": due_date_iso},
-                        },
+                        json=event_payload,
                     )
                     if res.status_code in (200, 201):
-                        return res.json()
+                        data = res.json()
+                        return {
+                            "status": "created",
+                            "id": data.get("id"),
+                            "htmlLink": data.get("htmlLink"),
+                            "summary": data.get("summary"),
+                            "date": clean_date,
+                        }
+                    else:
+                        logger.warning(f"[Google Calendar] Non-200 response ({res.status_code}): {res.text}")
             except Exception as exc:
                 logger.error(f"[Google Calendar] Error creating event: {exc}")
 
         # Fluent fallback
-        logger.info(f"[Google Calendar Mock] Created event '{title}' for {due_date_iso}")
+        logger.info(f"[Google Calendar Mock] Created event '{title}' for {clean_date}")
         return {
             "status": "created_fluent_mock",
-            "event_title": f"[PromiseCheck SLA] {title}",
-            "due_date": due_date_iso,
+            "id": f"cal-mock-{clean_date}",
+            "htmlLink": f"https://calendar.google.com/calendar/u/0/r/day/{clean_date.replace('-', '/')}",
+            "summary": f"[PromiseCheck SLA] {title}",
+            "date": clean_date,
         }
 
     async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:

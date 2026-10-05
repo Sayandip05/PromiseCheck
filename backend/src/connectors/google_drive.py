@@ -26,7 +26,20 @@ class GoogleDriveConnector(BaseConnector):
         return bool(self.access_token)
 
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
-        return True
+        token = credentials.get("access_token", self.access_token)
+        if not token:
+            logger.warning("[Google Drive] No access token supplied — credentials not configured.")
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(
+                    "https://www.googleapis.com/drive/v3/about?fields=user",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                return res.status_code == 200
+        except Exception as exc:
+            logger.warning(f"[Google Drive] Token verification failed: {exc}")
+            return False
 
     async def search_documents(self, query: str) -> list[dict[str, Any]]:
         """Search Google Drive documents matching keywords."""

@@ -28,9 +28,18 @@ class GoogleMeetConnector(BaseConnector):
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
         token = credentials.get("access_token", self.access_token)
         if not token:
-            logger.info("[Google Meet] No token supplied. Operating in fluent pre-credential mode.")
-            return True
-        return True
+            logger.warning("[Google Meet] No access token supplied — credentials not configured.")
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.get(
+                    "https://www.googleapis.com/oauth2/v1/tokeninfo",
+                    params={"access_token": token},
+                )
+                return res.status_code == 200
+        except Exception as exc:
+            logger.warning(f"[Google Meet] Token verification failed: {exc}")
+            return False
 
     async def list_recent_meetings(self) -> list[dict[str, Any]]:
         """List recent recorded meetings and conferences."""

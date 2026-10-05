@@ -29,8 +29,8 @@ class LinearConnector(BaseConnector):
         """Verify Linear API key by querying viewer identity."""
         key = credentials.get("api_key", self.api_key)
         if not key:
-            logger.info("[Linear] No API key supplied. Operating in fluent pre-credential mode.")
-            return True
+            logger.warning("[Linear] No API key supplied — credentials not configured.")
+            return False
 
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:

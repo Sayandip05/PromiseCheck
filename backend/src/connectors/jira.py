@@ -39,8 +39,8 @@ class JiraConnector(BaseConnector):
         token = credentials.get("api_token", self.api_token)
 
         if not (domain and email and token):
-            logger.info("[Jira] No credentials supplied. Operating in fluent pre-credential mode.")
-            return True
+            logger.warning("[Jira] Missing domain/email/token — credentials not configured.")
+            return False
 
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:

@@ -68,22 +68,53 @@ async def list_notifications(
 
 
 @router.post("/send", status_code=status.HTTP_200_OK)
-async def send_notification(payload: SendNotificationRequest):
-    """Dispatch real-time notification alert via Slack or Email connector."""
+async def send_notification(
+    payload: SendNotificationRequest,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Dispatch real-time notification alert via Slack, Gmail, or Email connector."""
+    ws_id = await get_active_workspace_id(db, user)
     if payload.channel.lower() == "slack":
-        slack = SlackConnector()
+        from modules.operations.models import WorkspaceIntegration
+
+        stmt_int = select(WorkspaceIntegration).where(
+            WorkspaceIntegration.workspace_id == ws_id,
+            WorkspaceIntegration.provider == "slack",
+        )
+        res_int = await db.execute(stmt_int)
+        slack_int = res_int.scalar_one_or_none()
+        cfg = slack_int.config_json if (slack_int and slack_int.config_json) else {}
+        slack = SlackConnector(
+            bot_token=cfg.get("bot_token") or cfg.get("api_key"),
+            default_channel=payload.recipient or cfg.get("channel") or cfg.get("scope"),
+            webhook_url=cfg.get("webhook_url"),
+        )
         res = await slack.post_message(
             text=payload.message or "Commitment SLA update from PromiseCheck",
-            channel=payload.recipient,
+            channel=payload.recipient or cfg.get("channel"),
         )
         return {"status": "dispatched", "channel": "slack", "result": res}
-    elif payload.channel.lower() == "email":
-        email_conn = EmailConnector()
-        res = await email_conn.send_email(
-            to_email=payload.recipient or "team@acme.corp",
-            subject="PromiseCheck Delivery Alert",
-            html_content=f"<p>{payload.message}</p>",
-        )
-        return {"status": "dispatched", "channel": "email", "result": res}
+    elif payload.channel.lower() in ("email", "gmail"):
+        from connectors.google_auth import get_valid_google_token_for_workspace
+        from connectors.gmail import GmailConnector
+
+        access_token, sender_email = await get_valid_google_token_for_workspace(db, ws_id)
+        if access_token:
+            gmail_conn = GmailConnector(access_token=access_token)
+            res = await gmail_conn.send_draft_update(
+                to_email=payload.recipient or "team@acme.corp",
+                subject="PromiseCheck Delivery Alert",
+                body=payload.message or "Commitment status update.",
+            )
+            return {"status": "dispatched", "channel": "gmail", "sender": sender_email, "result": res}
+        else:
+            email_conn = EmailConnector()
+            res = await email_conn.send_email(
+                to_email=payload.recipient or "team@acme.corp",
+                subject="PromiseCheck Delivery Alert",
+                html_content=f"<p>{payload.message}</p>",
+            )
+            return {"status": "dispatched", "channel": "email", "result": res}
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported notification channel: {payload.channel}")

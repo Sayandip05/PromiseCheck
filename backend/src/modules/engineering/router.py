@@ -69,13 +69,35 @@ async def list_linked_tickets(
 
 
 @router.get("/tickets/{tracker}/{key}")
-async def get_remote_ticket_status(tracker: str, key: str):
+async def get_remote_ticket_status(
+    tracker: str,
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
     """Directly query remote Jira or Linear status with fluent fallback."""
+    ws_id = await get_active_workspace_id(db, user)
+    from modules.operations.models import WorkspaceIntegration
+
+    stmt = select(WorkspaceIntegration).where(
+        WorkspaceIntegration.workspace_id == ws_id,
+        WorkspaceIntegration.provider == tracker.lower(),
+    )
+    res = await db.execute(stmt)
+    int_rec = res.scalar_one_or_none()
+    cfg = int_rec.config_json if (int_rec and int_rec.config_json) else {}
+
     if tracker.lower() == "jira":
-        jira = JiraConnector()
+        jira = JiraConnector(
+            domain=cfg.get("domain"),
+            email=cfg.get("email"),
+            api_token=cfg.get("api_token") or cfg.get("api_key"),
+        )
         return await jira.get_ticket(key)
     elif tracker.lower() == "linear":
-        linear = LinearConnector()
+        linear = LinearConnector(
+            api_key=cfg.get("api_key"),
+        )
         return await linear.get_issue(key)
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported engineering tracker: {tracker}")

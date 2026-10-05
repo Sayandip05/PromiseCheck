@@ -3,7 +3,7 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -105,17 +105,47 @@ async def _seed_default_customers(db: AsyncSession, workspace_id: uuid.UUID):
     await db.commit()
 
 
+from sqlalchemy import func
+
+
 @router.get("", response_model=list[CustomerDTO])
 async def list_customers(
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(
+        default=50,
+        ge=1,
+        le=100,
+        description="Items per page. Maximum 100.",
+    ),
+    response: Response = None,
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """List customer accounts for the active workspace with live commitment health scores."""
+    """List customer accounts for the active workspace with live commitment health scores and pagination."""
     ws_id = await get_active_workspace_id(db, user)
     await _seed_default_customers(db, ws_id)
 
-    res = await db.execute(select(Customer).where(Customer.workspace_id == ws_id))
+    # Count total customers for the active workspace
+    count_res = await db.execute(
+        select(func.count(Customer.id)).where(Customer.workspace_id == ws_id)
+    )
+    total = count_res.scalar_one()
+
+    # Bounded query using LIMIT + OFFSET
+    res = await db.execute(
+        select(Customer)
+        .where(Customer.workspace_id == ws_id)
+        .order_by(Customer.created_at.desc())
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
     customers = res.scalars().all()
+
+    if response:
+        response.headers["X-Total-Count"] = str(total)
+        response.headers["X-Page"] = str(page)
+        response.headers["X-Page-Size"] = str(page_size)
+        response.headers["X-Has-Next"] = "true" if (page * page_size) < total else "false"
 
     # Query commitments to calculate dynamic promise counts & health
     comm_res = await db.execute(select(Commitment).where(Commitment.workspace_id == ws_id))
@@ -209,4 +239,39 @@ async def create_customer(
         dueDate=customer.due_date,
         owner=customer.owner,
     )
+
+
+@router.get("/{customer_id}", response_model=CustomerDTO)
+async def get_customer(
+    customer_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve an individual customer account profile with workspace authorization."""
+    ws_id = await get_active_workspace_id(db, user)
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found",
+        )
+    # Tenant authorization check: prevent IDOR access across workspaces
+    if customer.workspace_id != ws_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this customer account.",
+        )
+
+    return CustomerDTO(
+        id=str(customer.id),
+        name=customer.name,
+        status=customer.status,
+        statusColor=customer.status_color,
+        activePromises=customer.active_promises,
+        healthScore=customer.health_score,
+        recentPromise=customer.recent_promise,
+        dueDate=customer.due_date,
+        owner=customer.owner,
+    )
+
 

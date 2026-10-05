@@ -24,9 +24,25 @@ def compile_uuid_sqlite(type_, compiler, **kw):
 
 
 import os
+from pathlib import Path
+
+from sqlalchemy.engine import make_url
+
+# Project root directory (parent of backend/)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 # Async Engine for FastAPI request handling (loaded strictly from .env)
-_db_url = settings.DATABASE_URL or os.getenv("DATABASE_URL") or "sqlite+aiosqlite:///./promisecheck.db"
+_raw_db_url = settings.DATABASE_URL or os.getenv("DATABASE_URL") or "sqlite+aiosqlite:///./promisecheck.db"
+try:
+    _url_obj = make_url(_raw_db_url)
+    if _url_obj.drivername.startswith("sqlite") and _url_obj.database and _url_obj.database.startswith("./"):
+        _abs_path = str((_PROJECT_ROOT / _url_obj.database[2:]).resolve())
+        _db_url = str(_url_obj.set(database=_abs_path))
+    else:
+        _db_url = _raw_db_url
+except Exception:
+    _db_url = _raw_db_url
+
 if _db_url.startswith("sqlite"):
     async_engine = create_async_engine(
         _db_url,

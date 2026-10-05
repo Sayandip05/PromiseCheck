@@ -13,6 +13,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { PromiseCheckIcon } from './brand/PromiseCheckLogo';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -49,21 +50,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-3 cursor-pointer group select-none"
           id="brand-logo-container"
         >
-          {/* Geometric wireframe icon matching Aspect's polygon style */}
-          <div className="relative w-8 h-8 flex items-center justify-center">
-            <svg 
-              viewBox="0 0 36 36" 
-              className="w-8 h-8 transition-transform duration-300 group-hover:scale-105"
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="1.6"
-            >
-              <polygon points="18,3 31,10.5 31,25.5 18,33 5,25.5 5,10.5" />
-              <line x1="18" y1="3" x2="18" y2="33" />
-              <line x1="5" y1="10.5" x2="31" y2="25.5" />
-              <line x1="5" y1="25.5" x2="31" y2="10.5" />
-              <circle cx="18" cy="18" r="3" fill="currentColor" fillOpacity="0.2" />
-            </svg>
+          {/* Brand Handshake & Checkmark Logo */}
+          <div className="relative w-8 h-8 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+            <PromiseCheckIcon className="w-8 h-8 text-neutral-950 dark:text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight">PromiseCheck</span>
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PromiseCheckIcon } from './brand/PromiseCheckLogo';
 
 interface FooterProps {
   darkMode: boolean;
@@ -169,35 +170,9 @@ export const Footer: React.FC<FooterProps> = ({ darkMode, onScrollTo, onOpenLogi
           </p>
         </div>
 
-        {/* Right: PromiseCheck geometric wireframe logo + Wordmark */}
+        {/* Right: PromiseCheck brand logo + Wordmark */}
         <div className="flex items-center gap-3.5 self-start md:self-auto">
-          <svg
-            viewBox="0 0 70 70"
-            className="w-11 h-11 stroke-current fill-none stroke-[1.4]"
-          >
-            {/* Outer Hexagon */}
-            <polygon points="35,4 62,19.5 62,50.5 35,66 8,50.5 8,19.5" />
-            
-            {/* Inner Y branches */}
-            <line x1="35" y1="35" x2="35" y2="66" />
-            <line x1="35" y1="35" x2="62" y2="19.5" />
-            <line x1="35" y1="35" x2="8" y2="19.5" />
-
-            {/* Isometric subdivision lines top face */}
-            <line x1="21.5" y1="11.75" x2="48.5" y2="27.25" />
-            <line x1="48.5" y1="11.75" x2="21.5" y2="27.25" />
-
-            {/* Isometric subdivision lines bottom-left face */}
-            <line x1="8" y1="35" x2="35" y2="50.5" />
-            <line x1="21.5" y1="27.25" x2="21.5" y2="58.25" />
-
-            {/* Isometric subdivision lines bottom-right face */}
-            <line x1="62" y1="35" x2="35" y2="50.5" />
-            <line x1="48.5" y1="27.25" x2="48.5" y2="58.25" />
-
-            {/* Additional internal wireframe diamond accents */}
-            <line x1="35" y1="4" x2="35" y2="35" />
-          </svg>
+          <PromiseCheckIcon className="w-10 h-10 md:w-11 md:h-11 text-neutral-900 dark:text-white shrink-0" />
           <span className="text-3xl md:text-[38px] font-normal tracking-tight">
             PromiseCheck
           </span>

@@ -20,6 +20,7 @@ interface CommitmentsViewProps {
   onViewIntegrations: () => void;
   onDraftCustomerUpdate: (comm: Commitment) => void;
   onReviewCommitment: (comm: Commitment) => void;
+  onSyncCalendar?: (comm: Commitment) => void;
   isDetailOpen: boolean;
   onCloseDetail: () => void;
   onOpenDetail: () => void;
@@ -38,6 +39,7 @@ export const CommitmentsView: React.FC<CommitmentsViewProps> = ({
   onViewIntegrations,
   onDraftCustomerUpdate,
   onReviewCommitment,
+  onSyncCalendar,
   isDetailOpen,
   onCloseDetail,
   onOpenDetail,
@@ -123,6 +125,7 @@ export const CommitmentsView: React.FC<CommitmentsViewProps> = ({
             onClose={onCloseDetail}
             onDraftCustomerUpdate={onDraftCustomerUpdate}
             onReviewCommitment={onReviewCommitment}
+            onSyncCalendar={onSyncCalendar}
           />
         </div>
       )}
@@ -148,6 +151,7 @@ export const CommitmentsView: React.FC<CommitmentsViewProps> = ({
                 onCloseDetail();
                 onReviewCommitment(comm);
               }}
+              onSyncCalendar={onSyncCalendar}
             />
           </div>
         </div>

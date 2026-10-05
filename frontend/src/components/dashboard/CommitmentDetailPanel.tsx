@@ -17,6 +17,7 @@ interface CommitmentDetailPanelProps {
   onDraftCustomerUpdate: (commitment: Commitment) => void;
   onReviewCommitment: (commitment: Commitment) => void;
   onOpenTranscript?: (transcriptId?: string) => void;
+  onSyncCalendar?: (commitment: Commitment) => void;
 }
 
 export const CommitmentDetailPanel: React.FC<CommitmentDetailPanelProps> = ({
@@ -25,6 +26,7 @@ export const CommitmentDetailPanel: React.FC<CommitmentDetailPanelProps> = ({
   onDraftCustomerUpdate,
   onReviewCommitment,
   onOpenTranscript,
+  onSyncCalendar,
 }) => {
   if (!commitment) {
     return (
@@ -242,6 +244,16 @@ export const CommitmentDetailPanel: React.FC<CommitmentDetailPanelProps> = ({
         >
           Review commitment
         </button>
+
+        {onSyncCalendar && (
+          <button
+            onClick={() => onSyncCalendar(commitment)}
+            className="w-full py-2 px-3 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+          >
+            <Calendar className="w-3.5 h-3.5 text-blue-500" />
+            <span>Sync to Google Calendar</span>
+          </button>
+        )}
 
         <div className="text-center pt-1">
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500">

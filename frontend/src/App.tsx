@@ -15,6 +15,10 @@ import { UploadTranscriptModal } from './components/dashboard/UploadTranscriptMo
 import { AddCommitmentModal } from './components/dashboard/AddCommitmentModal';
 import { SlackIntegrationModal } from './components/dashboard/SlackIntegrationModal';
 import { GoogleIntegrationModal } from './components/dashboard/GoogleIntegrationModal';
+import { JiraIntegrationModal } from './components/dashboard/JiraIntegrationModal';
+import { LinearIntegrationModal } from './components/dashboard/LinearIntegrationModal';
+import { RecallIntegrationModal } from './components/dashboard/RecallIntegrationModal';
+import { GoogleMeetModal } from './components/dashboard/GoogleMeetModal';
 
 // Landing Page Components (accessible via toggle)
 import { Navbar } from './components/Navbar';
@@ -75,6 +79,10 @@ export default function App() {
   const [isDraftUpdateOpen, setIsDraftUpdateOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
+  const [isLinearModalOpen, setIsLinearModalOpen] = useState(false);
+  const [isRecallModalOpen, setIsRecallModalOpen] = useState(false);
+  const [isGoogleMeetModalOpen, setIsGoogleMeetModalOpen] = useState(false);
 
   // Full application theme state (white / black)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -132,6 +140,13 @@ export default function App() {
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setCommitments(data as Commitment[]);
+        }
+      })
+      .catch(() => {});
+    api.integrations.list()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setIntegrations(data);
         }
       })
       .catch(() => {});
@@ -480,6 +495,10 @@ export default function App() {
                 integrations={integrations}
                 onConfigureSlack={() => setIsSlackModalOpen(true)}
                 onConfigureGoogle={() => setIsGoogleModalOpen(true)}
+                onConfigureJira={() => setIsJiraModalOpen(true)}
+                onConfigureLinear={() => setIsLinearModalOpen(true)}
+                onConfigureRecall={() => setIsRecallModalOpen(true)}
+                onConfigureGoogleMeet={() => setIsGoogleMeetModalOpen(true)}
                 onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
               />
             )}
@@ -538,6 +557,7 @@ export default function App() {
         isOpen={isSlackModalOpen}
         onClose={() => setIsSlackModalOpen(false)}
         workspace={workspace}
+        onIntegrationUpdated={refreshData}
       />
 
       <GoogleIntegrationModal
@@ -545,6 +565,35 @@ export default function App() {
         onClose={() => setIsGoogleModalOpen(false)}
         workspace={workspace}
         onIntegrationUpdated={refreshData}
+      />
+
+      <JiraIntegrationModal
+        isOpen={isJiraModalOpen}
+        onClose={() => setIsJiraModalOpen(false)}
+        workspace={workspace}
+        onIntegrationUpdated={refreshData}
+      />
+
+      <LinearIntegrationModal
+        isOpen={isLinearModalOpen}
+        onClose={() => setIsLinearModalOpen(false)}
+        workspace={workspace}
+        onIntegrationUpdated={refreshData}
+      />
+
+      <RecallIntegrationModal
+        isOpen={isRecallModalOpen}
+        onClose={() => setIsRecallModalOpen(false)}
+        workspace={workspace}
+        onIntegrationUpdated={refreshData}
+      />
+
+      <GoogleMeetModal
+        isOpen={isGoogleMeetModalOpen}
+        onClose={() => setIsGoogleMeetModalOpen(false)}
+        workspace={workspace}
+        onIntegrationUpdated={refreshData}
+        onOpenGoogleOAuth={() => setIsGoogleModalOpen(true)}
       />
 
       {/* Floating Toast Notification */}

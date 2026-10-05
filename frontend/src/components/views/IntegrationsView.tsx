@@ -14,6 +14,11 @@ interface IntegrationsViewProps {
   workspace: Workspace;
   integrations: Integration[];
   onConfigureSlack: () => void;
+  onConfigureGoogle?: () => void;
+  onConfigureJira?: () => void;
+  onConfigureLinear?: () => void;
+  onConfigureRecall?: () => void;
+  onConfigureGoogleMeet?: () => void;
   onOpenMobileMenu: () => void;
 }
 
@@ -21,9 +26,40 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
   workspace,
   integrations,
   onConfigureSlack,
+  onConfigureGoogle,
+  onConfigureJira,
+  onConfigureLinear,
+  onConfigureRecall,
+  onConfigureGoogleMeet,
   onOpenMobileMenu,
 }) => {
   const [filter, setFilter] = useState<'all' | 'connected' | 'available'>('all');
+
+  const handleConfigureProvider = (provider: string) => {
+    switch (provider) {
+      case 'slack':
+        onConfigureSlack();
+        break;
+      case 'gmail':
+      case 'google_calendar':
+        onConfigureGoogle?.();
+        break;
+      case 'jira':
+        onConfigureJira?.();
+        break;
+      case 'linear':
+        onConfigureLinear?.();
+        break;
+      case 'recall':
+        onConfigureRecall?.();
+        break;
+      case 'google_meet':
+        onConfigureGoogleMeet?.();
+        break;
+      default:
+        break;
+    }
+  };
 
   const filteredIntegrations = integrations.filter((item) => {
     if (filter === 'connected') return item.connected;
@@ -109,25 +145,26 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
             <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
               <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{item.lastSync || 'Never synced'}</span>
 
-              {item.provider === 'slack' ? (
-                <button
-                  onClick={onConfigureSlack}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
-                >
-                  <Settings2 className="w-3.5 h-3.5" />
-                  <span>Configure Slack</span>
-                </button>
-              ) : item.connected ? (
-                <button className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
-                  <span>Manage</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              ) : (
-                <button className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors cursor-pointer">
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Connect</span>
-                </button>
-              )}
+              <button
+                onClick={() => handleConfigureProvider(item.provider)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  item.connected
+                    ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700'
+                    : 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 shadow-2xs'
+                }`}
+              >
+                {item.connected ? (
+                  <>
+                    <Settings2 className="w-3.5 h-3.5" />
+                    <span>Configure</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Connect</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         ))}

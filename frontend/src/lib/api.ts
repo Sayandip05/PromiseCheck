@@ -260,6 +260,59 @@ export const api = {
       request<any>(`/integrations/${provider}/disconnect`, {
         method: 'POST',
       }),
+    getGoogleAuthorizeUrl: (redirectUri?: string) =>
+      request<{ authorization_url: string; redirect_uri: string; state: string }>(
+        `/integrations/google/authorize${redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`
+      ),
+    connectGoogleToken: (data: {
+      access_token: string;
+      refresh_token?: string;
+      email?: string;
+      expires_in?: number;
+    }) =>
+      request<any>('/integrations/google/connect-token', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    syncCalendarEvent: (data: {
+      commitment_id?: string;
+      title: string;
+      due_date_iso: string;
+      description?: string;
+    }) =>
+      request<{ status: string; email?: string; event?: any; html_link?: string }>(
+        '/integrations/google/calendar/sync-event',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      ),
+    sendGmailUpdate: (data: {
+      to_email: string;
+      subject: string;
+      body: string;
+      commitment_id?: string;
+    }) =>
+      request<{ status: string; sender?: string; result?: any }>(
+        '/integrations/google/gmail/send-update',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      ),
+  },
+
+  notifications: {
+    send: (data: {
+      channel: string;
+      recipient?: string;
+      message: string;
+      commitment_id?: string;
+    }) =>
+      request<any>('/notifications/send', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   audit: {

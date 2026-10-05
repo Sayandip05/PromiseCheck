@@ -35,9 +35,10 @@ class SlackConnector(BaseConnector):
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
         """Verify Slack bot token against /api/auth.test."""
         token = credentials.get("bot_token", self.bot_token)
-        if not token and not self.webhook_url:
-            logger.info("[Slack] No token supplied. Operating in fluent pre-credential mode.")
-            return True
+        webhook = credentials.get("webhook_url", self.webhook_url)
+        if not token and not webhook:
+            logger.warning("[Slack] No token or webhook supplied — credentials not configured.")
+            return False
 
         if token:
             try:

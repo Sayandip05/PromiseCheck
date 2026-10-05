@@ -27,6 +27,10 @@ class EmailConnector(BaseConnector):
         return bool(self.api_key)
 
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
+        key = credentials.get("api_key", self.api_key)
+        if not key:
+            logger.warning("[Email] No API key supplied — credentials not configured.")
+            return False
         return True
 
     async def send_email(

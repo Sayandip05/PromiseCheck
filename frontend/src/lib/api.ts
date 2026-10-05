@@ -256,6 +256,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data || {}),
       }),
+    test: (provider: string, data?: any) =>
+      request<{ success: boolean; provider: string; message: string; details?: any }>(
+        `/integrations/${provider}/test`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data || {}),
+        }
+      ),
     disconnect: (provider: string) =>
       request<any>(`/integrations/${provider}/disconnect`, {
         method: 'POST',

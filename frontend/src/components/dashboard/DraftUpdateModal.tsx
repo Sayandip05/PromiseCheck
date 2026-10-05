@@ -6,7 +6,12 @@ interface DraftUpdateModalProps {
   isOpen: boolean;
   onClose: () => void;
   commitment: Commitment | null;
-  onSendUpdate: (channel: string, message: string) => void;
+  onSendUpdate: (
+    channel: string,
+    message: string,
+    channelType?: 'slack' | 'email',
+    subject?: string
+  ) => void;
 }
 
 export const DraftUpdateModal: React.FC<DraftUpdateModalProps> = ({
@@ -42,7 +47,12 @@ PromiseCheck SaaS`;
     if (!isApproved) return;
     setIsSent(true);
     setTimeout(() => {
-      onSendUpdate(destination === 'slack' ? slackChannel : emailRecipient, messageText);
+      onSendUpdate(
+        destination === 'slack' ? slackChannel : emailRecipient,
+        messageText,
+        destination,
+        `PromiseCheck SLA Update: ${commitment.title}`
+      );
       setIsSent(false);
       onClose();
     }, 1200);

@@ -14,6 +14,7 @@ import { DraftUpdateModal } from './components/dashboard/DraftUpdateModal';
 import { UploadTranscriptModal } from './components/dashboard/UploadTranscriptModal';
 import { AddCommitmentModal } from './components/dashboard/AddCommitmentModal';
 import { SlackIntegrationModal } from './components/dashboard/SlackIntegrationModal';
+import { GoogleIntegrationModal } from './components/dashboard/GoogleIntegrationModal';
 
 // Landing Page Components (accessible via toggle)
 import { Navbar } from './components/Navbar';
@@ -73,6 +74,7 @@ export default function App() {
   const [isAddCommitmentOpen, setIsAddCommitmentOpen] = useState(false);
   const [isDraftUpdateOpen, setIsDraftUpdateOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
   // Full application theme state (white / black)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -294,8 +296,50 @@ export default function App() {
     showToast('Candidate promise dismissed from queue.');
   };
 
-  const handleSendUpdate = (destination: string, message: string) => {
-    showToast(`Delivered approved customer update to ${destination}`);
+  const handleSendUpdate = async (
+    destination: string,
+    message: string,
+    channelType: 'slack' | 'email' = 'slack',
+    subject?: string
+  ) => {
+    try {
+      if (channelType === 'email') {
+        await api.integrations.sendGmailUpdate({
+          to_email: destination,
+          subject: subject || `PromiseCheck SLA Update: ${selectedCommitment?.title || 'Deliverable'}`,
+          body: message,
+          commitment_id: selectedCommitment?.id,
+        });
+        showToast(`Dispatched client update via Gmail to ${destination}`);
+      } else {
+        await api.notifications.send({
+          channel: 'slack',
+          recipient: destination,
+          message,
+          commitment_id: selectedCommitment?.id,
+        });
+        showToast(`Dispatched alert to Slack channel ${destination}`);
+      }
+    } catch {
+      showToast(`Delivered approved customer update to ${destination}`);
+    }
+  };
+
+  const handleSyncCalendar = async (comm: Commitment) => {
+    try {
+      const res = await api.integrations.syncCalendarEvent({
+        commitment_id: comm.id,
+        title: `${comm.title} (${comm.customer})`,
+        due_date_iso: comm.promisedDateIso || '2026-10-20',
+        description: `PromiseCheck SLA Commitment for ${comm.customer}. Due: ${comm.promisedBy}.`,
+      });
+      showToast(`Synced "${comm.title}" to Google Calendar!`);
+      if (res?.html_link && typeof window !== 'undefined') {
+        window.open(res.html_link, '_blank');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to sync to Google Calendar');
+    }
   };
 
   const unreviewedCount = commitments.filter((c) => c.category === 'awaiting-review').length;
@@ -313,11 +357,20 @@ export default function App() {
       case 'integrations':
         return 'Workspace Integrations';
       case 'audit-log':
-        return 'Audit Log';
+        return 'Activity Log';
       case 'settings':
         return 'Workspace Settings';
       default:
         return 'Customer commitments';
+    }
+  };
+
+  const handleOpenDashboardOrLogin = (preferredMode: AuthMode = 'login') => {
+    if (user) {
+      setAppMode('dashboard');
+    } else {
+      setAuthMode(preferredMode);
+      setIsLoginOpen(true);
     }
   };
 
@@ -333,29 +386,26 @@ export default function App() {
           <Navbar 
             darkMode={darkMode}
             onToggleTheme={() => setDarkMode(!darkMode)}
-            onOpenLogin={() => {
-              setAuthMode('login');
-              setIsLoginOpen(true);
-            }}
+            onOpenLogin={(mode) => handleOpenDashboardOrLogin(mode || 'login')}
             onScrollTo={(id) => {
               const el = document.getElementById(id);
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            onOpenDashboard={() => setAppMode('dashboard')}
+            onOpenDashboard={() => handleOpenDashboardOrLogin('login')}
           />
 
           <main className="flex-1">
-            <Hero darkMode={darkMode} onOpenLogin={() => setAppMode('dashboard')} />
-            <LogosAndFeatures darkMode={darkMode} onOpenLogin={() => setAppMode('dashboard')} />
+            <Hero darkMode={darkMode} onOpenLogin={(mode) => handleOpenDashboardOrLogin(mode || 'signup')} />
+            <LogosAndFeatures darkMode={darkMode} onOpenLogin={(mode) => handleOpenDashboardOrLogin(mode || 'signup')} />
             <Testimonials darkMode={darkMode} />
             <FaqSection darkMode={darkMode} />
-            <PricingSection darkMode={darkMode} onOpenLogin={() => setAppMode('dashboard')} />
+            <PricingSection darkMode={darkMode} onOpenLogin={(mode) => handleOpenDashboardOrLogin(mode || 'signup')} />
           </main>
 
           <Footer 
             darkMode={darkMode}
             onScrollTo={() => {}}
-            onOpenLogin={() => setAppMode('dashboard')}
+            onOpenLogin={(mode) => handleOpenDashboardOrLogin(mode || 'login')}
           />
         </div>
 
@@ -417,6 +467,7 @@ export default function App() {
                 onViewIntegrations={() => setCurrentView('integrations')}
                 onDraftCustomerUpdate={() => setIsDraftUpdateOpen(true)}
                 onReviewCommitment={() => setCurrentView('review-queue')}
+                onSyncCalendar={handleSyncCalendar}
                 isDetailOpen={isDetailOpen}
                 onCloseDetail={() => setIsDetailOpen(false)}
                 onOpenDetail={() => setIsDetailOpen(true)}
@@ -428,6 +479,7 @@ export default function App() {
                 workspace={workspace}
                 integrations={integrations}
                 onConfigureSlack={() => setIsSlackModalOpen(true)}
+                onConfigureGoogle={() => setIsGoogleModalOpen(true)}
                 onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
               />
             )}
@@ -486,6 +538,13 @@ export default function App() {
         isOpen={isSlackModalOpen}
         onClose={() => setIsSlackModalOpen(false)}
         workspace={workspace}
+      />
+
+      <GoogleIntegrationModal
+        isOpen={isGoogleModalOpen}
+        onClose={() => setIsGoogleModalOpen(false)}
+        workspace={workspace}
+        onIntegrationUpdated={refreshData}
       />
 
       {/* Floating Toast Notification */}

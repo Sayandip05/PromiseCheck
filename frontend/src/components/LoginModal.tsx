@@ -39,42 +39,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   }, [isOpen, initialMode]);
 
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMessage('');
-
-    try {
-      if (mode === 'signup') {
-        const nameToUse = fullName.trim() || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-        await register(email, password, nameToUse);
-      } else if (mode === 'login') {
-        await login(email, password);
-      } else {
-        // Contact support message submission
-        setIsSubmitted(true);
-        setTimeout(() => {
-          setIsSubmitted(false);
-          onClose();
-        }, 1500);
-        return;
-      }
-
-      setIsSubmitted(true);
-      setTimeout(() => {
-        setIsSubmitted(false);
-        onClose();
-        if (onLoginSuccess) onLoginSuccess();
-      }, 700);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Authentication failed. Please verify credentials.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const googleClientId =
     (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
     '579731781607-95rdh3kfjuhreep49ap07nqu6jdkqe6b.apps.googleusercontent.com';
@@ -126,6 +90,42 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return () => clearInterval(interval);
     }
   }, [isOpen, googleClientId]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      if (mode === 'signup') {
+        const nameToUse = fullName.trim() || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+        await register(email, password, nameToUse);
+      } else if (mode === 'login') {
+        await login(email, password);
+      } else {
+        // Contact support message submission
+        setIsSubmitted(true);
+        setTimeout(() => {
+          setIsSubmitted(false);
+          onClose();
+        }, 1500);
+        return;
+      }
+
+      setIsSubmitted(true);
+      setTimeout(() => {
+        setIsSubmitted(false);
+        onClose();
+        if (onLoginSuccess) onLoginSuccess();
+      }, 700);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Authentication failed. Please verify credentials.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleGoogleAuth = async () => {
     setIsSubmitting(true);

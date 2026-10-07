@@ -12,8 +12,9 @@ from src.main import app
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def client(auth_client: TestClient) -> TestClient:
+    return auth_client
+
 
 
 def test_idempotency_retry_prevents_duplicate_commitments(client: TestClient):

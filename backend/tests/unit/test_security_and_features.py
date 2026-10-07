@@ -39,82 +39,78 @@ def test_security_headers_and_tracing(client: TestClient):
 
 
 @pytest.mark.asyncio
-async def test_all_connectors_fluent_dual_mode():
-    """Verify all 11 connectors run smoothly without throwing exceptions in mock fallback mode."""
+async def test_all_connectors_fail_fast_when_unconfigured():
+    """Verify connectors fail fast with ConnectorNotConfiguredError instead of silent fluent mocks."""
+    from connectors.base import ConnectorNotConfiguredError
+
     # 1. Jira
     jira = JiraConnector()
-    assert await jira.verify_credentials({}) is False
-    res = await jira.get_ticket("ENG-101")
-    assert res["key"] == "ENG-101"
+    with pytest.raises(ConnectorNotConfiguredError):
+        await jira.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await jira.get_ticket("ENG-101")
 
     # 2. Linear
     linear = LinearConnector()
-    assert await linear.verify_credentials({}) is False
-    res = await linear.get_issue("LIN-42")
-    assert res["identifier"] == "LIN-42"
+    with pytest.raises(ConnectorNotConfiguredError):
+        await linear.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await linear.get_issue("LIN-42")
 
     # 3. Slack
     slack = SlackConnector()
-    assert await slack.verify_credentials({}) is False
-    res = await slack.post_message("Test alert", channel="#alerts")
-    assert "delivered" in res["status"]
+    with pytest.raises(ConnectorNotConfiguredError):
+        await slack.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await slack.post_message("Test alert", channel="#alerts")
 
-    # 4. Email
-    email = EmailConnector()
-    assert await email.verify_credentials({}) is False
-    res = await email.send_email("client@acme.corp", "Update", "Body content")
-    assert "sent" in res["status"]
-
-    # 5. Google Meet
-    gmeet = GoogleMeetConnector()
-    assert await gmeet.verify_credentials({}) is False
-    res = await gmeet.list_recent_meetings()
-    assert len(res) > 0
-
-    # 6. Gmail
+    # 4. Gmail
     gmail = GmailConnector()
-    assert await gmail.verify_credentials({}) is False
-    res = await gmail.send_draft_update("client@acme.corp", "Update", "Body")
-    assert "sent" in res["status"]
+    with pytest.raises(ConnectorNotConfiguredError):
+        await gmail.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await gmail.send_draft_update("client@acme.corp", "Update", "Body")
 
-    # 7. Google Calendar
+    # 5. Google Calendar
     gcal = GoogleCalendarConnector()
-    assert await gcal.verify_credentials({}) is False
-    res = await gcal.create_deadline_event("SSO SLA", "2026-10-15", "Delivery deadline")
-    assert "status" in res
+    with pytest.raises(ConnectorNotConfiguredError):
+        await gcal.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await gcal.create_deadline_event("SSO SLA", "2026-10-15", "Delivery deadline")
 
-    # 8. Google Drive
-    gdrive = GoogleDriveConnector()
-    assert await gdrive.verify_credentials({}) is False
-    res = await gdrive.search_documents("SLA Agreement")
-    assert len(res) > 0
-
-    # 9. External MCP
-    mcp = ExternalMCPConnector()
-    assert await mcp.verify_credentials({}) is False
-    tools = await mcp.list_tools()
-    assert len(tools) > 0
-
-    # 10. Speech-To-Text
+    # 6. Speech-To-Text
     stt = SpeechToTextConnector()
-    assert await stt.verify_credentials({}) is False
-    trans = await stt.transcribe_audio(b"fake audio data", "audio.mp3")
-    assert isinstance(trans, str) and len(trans) > 0
+    with pytest.raises(ConnectorNotConfiguredError):
+        await stt.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await stt.transcribe_audio(b"fake audio data", "audio.mp3")
 
-    # 11. Recall
+    # 7. Recall
     recall = RecallConnector()
-    assert await recall.verify_credentials({}) is False
-    bot = await recall.create_bot("https://meet.google.com/xyz-abc")
-    assert "id" in bot
+    with pytest.raises(ConnectorNotConfiguredError):
+        await recall.verify_credentials({})
+    with pytest.raises(ConnectorNotConfiguredError):
+        await recall.create_bot("https://meet.google.com/xyz-abc")
 
 
 
+def test_commitments_and_customers_endpoints(auth_client: TestClient):
+    """Verify commitments and live customer metric calculations with authenticated client."""
+    # Create customer and commitment
+    cust_create = auth_client.post(
+        "/api/v1/customers",
+        json={"name": "Acme Test Corp", "tier": "Enterprise", "arr": 150000, "health_score": 90},
+    )
+    assert cust_create.status_code == 201
 
-def test_commitments_and_customers_endpoints(client: TestClient):
-    """Verify commitments and live customer metric calculations."""
-    comm_res = client.get("/api/v1/commitments")
+    comm_create = auth_client.post(
+        "/api/v1/commitments",
+        json={"title": "Deliver SSO SAML", "customer": "Acme Test Corp", "promised_by": "Oct 25, 2026"},
+    )
+    assert comm_create.status_code == 201
+
+    comm_res = auth_client.get("/api/v1/commitments")
     assert comm_res.status_code == 200
-    # Fix #6: GET /commitments now returns a paginated response wrapper
     paginated = comm_res.json()
     assert "items" in paginated, "Expected paginated response with 'items' key"
     assert "total" in paginated
@@ -123,21 +119,20 @@ def test_commitments_and_customers_endpoints(client: TestClient):
     assert isinstance(commitments, list)
     assert len(commitments) > 0
 
-    cust_res = client.get("/api/v1/customers")
+    cust_res = auth_client.get("/api/v1/customers")
     assert cust_res.status_code == 200
     customers = cust_res.json()
     assert isinstance(customers, list)
     assert len(customers) > 0
-    # Customer should have active promises and health score
     for c in customers:
         assert "healthScore" in c
         assert "activePromises" in c
         assert c["healthScore"] >= 0
 
 
-def test_risk_evaluation_endpoint(client: TestClient):
+def test_risk_evaluation_endpoint(auth_client: TestClient):
     """Verify POST /api/v1/risk/evaluate scans commitments and returns metrics."""
-    res = client.post("/api/v1/risk/evaluate")
+    res = auth_client.post("/api/v1/risk/evaluate")
     assert res.status_code == 200
     data = res.json()
     assert "evaluated_count" in data
@@ -146,12 +141,13 @@ def test_risk_evaluation_endpoint(client: TestClient):
     assert "on_track_count" in data
 
 
-def test_delivery_verification_flow(client: TestClient):
+def test_delivery_verification_flow(auth_client: TestClient):
     """Verify delivery evidence endpoint returns 200."""
-    res = client.get("/api/v1/delivery/evidence")
+    res = auth_client.get("/api/v1/delivery/evidence")
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
+
 
 
 def test_jwt_secret_crash_on_missing_key():

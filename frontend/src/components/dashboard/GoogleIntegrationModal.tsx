@@ -12,7 +12,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { Workspace } from '../../types/dashboard';
-import { api } from '../../lib/api';
+import { api, explainError } from '../../lib/api';
 
 interface GoogleIntegrationModalProps {
   isOpen: boolean;
@@ -95,7 +95,7 @@ export const GoogleIntegrationModal: React.FC<GoogleIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to initialize Google OAuth session.',
+        text: explainError(err, 'Failed to initialize Google OAuth session. Please check client credentials.'),
       });
     } finally {
       setIsLoading(false);
@@ -124,7 +124,7 @@ export const GoogleIntegrationModal: React.FC<GoogleIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to verify Google access token.',
+        text: explainError(err, 'Failed to verify Google access token. Please ensure it is valid and unexpired.'),
       });
     } finally {
       setIsLoading(false);
@@ -148,7 +148,7 @@ export const GoogleIntegrationModal: React.FC<GoogleIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to sync event to Google Calendar.',
+        text: explainError(err, 'Failed to sync event to Google Calendar.'),
       });
     } finally {
       setIsSyncingCalendar(false);
@@ -170,7 +170,7 @@ export const GoogleIntegrationModal: React.FC<GoogleIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to disconnect integration.',
+        text: explainError(err, 'Failed to disconnect Google integration.'),
       });
     } finally {
       setIsLoading(false);

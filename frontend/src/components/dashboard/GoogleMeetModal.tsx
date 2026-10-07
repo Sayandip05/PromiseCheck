@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Workspace } from '../../types/dashboard';
 import { GoogleMeetLogo } from '../ui/BrandLogos';
-import { api } from '../../lib/api';
+import { api, explainError } from '../../lib/api';
 
 interface GoogleMeetModalProps {
   isOpen: boolean;
@@ -74,7 +74,7 @@ export const GoogleMeetModal: React.FC<GoogleMeetModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to query Google Meet conference records.',
+        text: explainError(err, 'Failed to query Google Meet conference records. Please verify OAuth authorization.'),
       });
     } finally {
       setIsTesting(false);
@@ -102,7 +102,7 @@ export const GoogleMeetModal: React.FC<GoogleMeetModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to save Google Meet settings.',
+        text: explainError(err, 'Failed to save Google Meet configuration.'),
       });
     } finally {
       setIsLoading(false);
@@ -124,7 +124,7 @@ export const GoogleMeetModal: React.FC<GoogleMeetModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to disconnect Google Meet.',
+        text: explainError(err, 'Failed to disconnect Google Meet integration.'),
       });
     } finally {
       setIsLoading(false);

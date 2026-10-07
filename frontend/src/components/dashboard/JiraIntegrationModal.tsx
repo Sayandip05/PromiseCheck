@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Workspace } from '../../types/dashboard';
 import { JiraLogo } from '../ui/BrandLogos';
-import { api } from '../../lib/api';
+import { api, explainError } from '../../lib/api';
 
 interface JiraIntegrationModalProps {
   isOpen: boolean;
@@ -85,7 +85,7 @@ export const JiraIntegrationModal: React.FC<JiraIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to verify Jira connection.',
+        text: explainError(err, 'Failed to verify Jira connection. Please check your domain, Atlassian email, and API token.'),
       });
     } finally {
       setIsTesting(false);
@@ -117,7 +117,7 @@ export const JiraIntegrationModal: React.FC<JiraIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to save Jira configuration.',
+        text: explainError(err, 'Failed to save Jira configuration.'),
       });
     } finally {
       setIsLoading(false);
@@ -141,7 +141,7 @@ export const JiraIntegrationModal: React.FC<JiraIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to disconnect Jira.',
+        text: explainError(err, 'Failed to disconnect Jira integration.'),
       });
     } finally {
       setIsLoading(false);

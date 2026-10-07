@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Workspace } from '../../types/dashboard';
 import { SlackLogo } from '../ui/BrandLogos';
-import { api } from '../../lib/api';
+import { api, explainError } from '../../lib/api';
 
 interface SlackIntegrationModalProps {
   isOpen: boolean;
@@ -87,7 +87,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to send test message to Slack.',
+        text: explainError(err, 'Failed to send test message to Slack. Please verify your webhook URL or bot token.'),
       });
     } finally {
       setIsTesting(false);
@@ -120,7 +120,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to save Slack settings.',
+        text: explainError(err, 'Failed to save Slack settings. Please verify configuration.'),
       });
     } finally {
       setIsLoading(false);
@@ -143,7 +143,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to disconnect Slack.',
+        text: explainError(err, 'Failed to disconnect Slack integration.'),
       });
     } finally {
       setIsLoading(false);

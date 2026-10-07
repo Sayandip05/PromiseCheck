@@ -39,7 +39,7 @@ import {
 import { Commitment, DashboardView, Workspace } from './types/dashboard';
 import { LayoutDashboard, Globe } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
-import { api } from './lib/api';
+import { api, explainError } from './lib/api';
 import { useRealtimeEvents } from './hooks/useRealtimeEvents';
 
 export default function App() {
@@ -353,7 +353,7 @@ export default function App() {
         window.open(res.html_link, '_blank');
       }
     } catch (err: any) {
-      showToast(err.message || 'Failed to sync to Google Calendar');
+      showToast(explainError(err, 'Failed to sync event to Google Calendar.'));
     }
   };
 

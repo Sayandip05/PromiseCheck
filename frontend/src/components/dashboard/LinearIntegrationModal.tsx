@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Workspace } from '../../types/dashboard';
 import { LinearLogo } from '../ui/BrandLogos';
-import { api } from '../../lib/api';
+import { api, explainError } from '../../lib/api';
 
 interface LinearIntegrationModalProps {
   isOpen: boolean;
@@ -75,7 +75,7 @@ export const LinearIntegrationModal: React.FC<LinearIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to verify Linear API key.',
+        text: explainError(err, 'Failed to verify Linear API key. Please verify the key in Linear Settings > Account > API.'),
       });
     } finally {
       setIsTesting(false);
@@ -104,7 +104,7 @@ export const LinearIntegrationModal: React.FC<LinearIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to save Linear configuration.',
+        text: explainError(err, 'Failed to save Linear configuration.'),
       });
     } finally {
       setIsLoading(false);
@@ -126,7 +126,7 @@ export const LinearIntegrationModal: React.FC<LinearIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to disconnect Linear.',
+        text: explainError(err, 'Failed to disconnect Linear integration.'),
       });
     } finally {
       setIsLoading(false);

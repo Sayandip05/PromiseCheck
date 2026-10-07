@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PromiseCheckIcon } from './brand/PromiseCheckLogo';
+import { explainError } from '../lib/api';
 
 export type AuthMode = 'signup' | 'login' | 'contact';
 
@@ -121,7 +122,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         if (onLoginSuccess) onLoginSuccess();
       }, 700);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Authentication failed. Please verify credentials.');
+      setErrorMessage(explainError(err, 'Authentication failed. Please verify credentials.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -157,7 +158,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         if (onLoginSuccess) onLoginSuccess();
       }, 700);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Google authentication failed.');
+      setErrorMessage(explainError(err, 'Google authentication could not be completed. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }

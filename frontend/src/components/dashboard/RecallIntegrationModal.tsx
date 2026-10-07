@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Workspace } from '../../types/dashboard';
 import { RecallLogo } from '../ui/BrandLogos';
-import { api } from '../../lib/api';
+import { api, explainError } from '../../lib/api';
 
 interface RecallIntegrationModalProps {
   isOpen: boolean;
@@ -76,7 +76,7 @@ export const RecallIntegrationModal: React.FC<RecallIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to dispatch test bot with Recall.ai.',
+        text: explainError(err, 'Failed to dispatch test bot with Recall.ai. Please check your API key and region.'),
       });
     } finally {
       setIsTesting(false);
@@ -106,7 +106,7 @@ export const RecallIntegrationModal: React.FC<RecallIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to save Recall.ai configuration.',
+        text: explainError(err, 'Failed to save Recall.ai configuration.'),
       });
     } finally {
       setIsLoading(false);
@@ -128,7 +128,7 @@ export const RecallIntegrationModal: React.FC<RecallIntegrationModalProps> = ({
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Failed to disconnect Recall.ai.',
+        text: explainError(err, 'Failed to disconnect Recall.ai integration.'),
       });
     } finally {
       setIsLoading(false);

@@ -1,17 +1,12 @@
-"""Bounded investigation agent."""
+"""Legacy compatibility module for Commitment Risk Investigation Agent.
 
-from typing import Any
+FEATURE NOTICE:
+This module has been renamed to `ai.risk_investigator` to provide unambiguous,
+feature-based naming for engineers and clarify that it investigates commitment delivery risks.
 
-from ai.client import AIClient
+Please import directly from `ai.risk_investigator` in all new code.
+"""
 
+from ai.risk_investigator import InvestigationAgent
 
-class InvestigationAgent:
-    """Bounded tool-using agent that checks Jira/Linear dates and drafts customer updates."""
-
-    def __init__(self, max_tool_calls: int = 6) -> None:
-        self.max_tool_calls = max_tool_calls
-        self.client = AIClient()
-
-    async def investigate_commitment(self, commitment_id: str) -> dict[str, Any]:
-        """Run tool loop within safety budget (Phase 7)."""
-        return {"status": "investigation_stub", "tool_calls_used": 0}
+__all__ = ["InvestigationAgent"]

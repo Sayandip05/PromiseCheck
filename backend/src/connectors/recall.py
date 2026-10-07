@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from connectors.base import BaseConnector
+from connectors.base import BaseConnector, ConnectorDeliveryError, ConnectorNotConfiguredError
 from core.logging import get_logger
 
 logger = get_logger("connector.recall")
@@ -30,8 +30,7 @@ class RecallConnector(BaseConnector):
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
         key = credentials.get("api_key", self.api_key)
         if not key:
-            logger.warning("[Recall.ai] No API key supplied — credentials not configured.")
-            return False
+            raise ConnectorNotConfiguredError("Recall.ai connector requires an API key.")
 
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
@@ -39,68 +38,61 @@ class RecallConnector(BaseConnector):
                     f"{self.base_url}/bot/",
                     headers={"Authorization": f"Token {key}"},
                 )
-                return res.status_code in (200, 401)
+                if res.status_code == 200:
+                    return True
+                raise ConnectorDeliveryError(f"Recall.ai credentials rejected: HTTP {res.status_code}")
+        except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+            raise
         except Exception as exc:
-            logger.warning(f"[Recall.ai] Credential verification failed: {exc}")
-            return False
+            raise ConnectorDeliveryError(f"Recall.ai verification error: {exc}")
 
     async def create_bot(self, meeting_url: str, bot_name: str = "PromiseCheck NoteTaker") -> dict[str, Any]:
         """Dispatch a virtual participant bot to record and transcribe a meeting."""
-        if self.is_configured:
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    res = await client.post(
-                        f"{self.base_url}/bot/",
-                        headers={"Authorization": f"Token {self.api_key}", "Content-Type": "application/json"},
-                        json={
-                            "meeting_url": meeting_url,
-                            "bot_name": bot_name,
-                            "transcription_options": {"provider": "meeting_captions"},
-                        },
-                    )
-                    if res.status_code in (200, 201):
-                        return res.json()
-            except Exception as exc:
-                logger.error(f"[Recall.ai] Failed to dispatch live bot: {exc}")
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Recall.ai is not configured. Provide an API key.")
 
-        # Fluent fallback
-        logger.info(f"[Recall.ai] Mock bot dispatched to {meeting_url}")
-        return {
-            "id": f"bot-mock-{os.urandom(4).hex()}",
-            "meeting_url": meeting_url,
-            "status": "in_call_recording",
-            "bot_name": bot_name,
-            "source": "fluent_mock",
-        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(
+                    f"{self.base_url}/bot/",
+                    headers={"Authorization": f"Token {self.api_key}", "Content-Type": "application/json"},
+                    json={
+                        "meeting_url": meeting_url,
+                        "bot_name": bot_name,
+                        "transcription_options": {"provider": "meeting_captions"},
+                    },
+                )
+                if res.status_code in (200, 201):
+                    return res.json()
+                raise ConnectorDeliveryError(f"Recall.ai bot creation failed: HTTP {res.status_code} {res.text}")
+        except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+            raise
+        except Exception as exc:
+            raise ConnectorDeliveryError(f"Recall.ai dispatch error: {exc}")
 
     async def get_transcript(self, bot_id: str) -> dict[str, Any]:
         """Fetch finished meeting transcript from Recall.ai."""
-        if self.is_configured:
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    res = await client.get(
-                        f"{self.base_url}/bot/{bot_id}/transcript/",
-                        headers={"Authorization": f"Token {self.api_key}"},
-                    )
-                    if res.status_code == 200:
-                        return res.json()
-            except Exception as exc:
-                logger.error(f"[Recall.ai] Failed to fetch live transcript for {bot_id}: {exc}")
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Recall.ai is not configured.")
 
-        # Fluent fallback transcript
-        return {
-            "bot_id": bot_id,
-            "status": "ready",
-            "text": (
-                "Alex: Thanks for joining today's call. Regarding the SOC-2 Type II audit deliverable, "
-                "we will have the final compliance report generated and shared with your team by October 20. "
-                "Client Lead: That matches our security audit window perfectly."
-            ),
-            "source": "fluent_mock",
-        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(
+                    f"{self.base_url}/bot/{bot_id}/transcript/",
+                    headers={"Authorization": f"Token {self.api_key}"},
+                )
+                if res.status_code == 200:
+                    return res.json()
+                raise ConnectorDeliveryError(f"Recall.ai transcript fetch failed: HTTP {res.status_code} {res.text}")
+        except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+            raise
+        except Exception as exc:
+            raise ConnectorDeliveryError(f"Recall.ai transcript error: {exc}")
 
     async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:
-        return {"status": "active" if self.is_configured else "fluent_mock", "bots_active": 1}
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Recall.ai is not configured.")
+        return {"status": "active", "bots_active": 0}
 
     async def reconcile(self, workspace_id: str) -> dict[str, Any]:
         return {"status": "synchronized"}

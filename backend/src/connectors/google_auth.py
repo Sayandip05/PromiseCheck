@@ -136,7 +136,7 @@ async def get_valid_google_token_for_workspace(
             return env_token, os.getenv("GOOGLE_AUTHORIZED_EMAIL", "system@promisecheck.com")
         return None, None
 
-    config = dict(integration.config_json)
+    config = integration.get_decrypted_config()
     access_token = config.get("access_token")
     refresh_token = config.get("refresh_token")
     expires_at = config.get("token_expiry", 0)
@@ -158,7 +158,7 @@ async def get_valid_google_token_for_workspace(
             if new_access_token:
                 config["access_token"] = new_access_token
                 config["token_expiry"] = now + expires_in
-                integration.config_json = config
+                integration.set_encrypted_config(config)
                 await db.commit()
                 await db.refresh(integration)
                 return new_access_token, email

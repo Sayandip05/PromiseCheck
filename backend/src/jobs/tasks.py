@@ -41,64 +41,27 @@ else:
 _sync_engine = create_engine(_db_sync_url, **_sync_engine_kwargs)
 
 
-@celery_app.task(bind=True, queue="ingestion", max_retries=3, default_retry_delay=30)
-def process_transcript_ingestion(
-    self,
+def _extract_and_persist_commitments(
     job_id: str,
     workspace_id: str,
     transcript_text: str,
-    customer_name: str = "Acme",
-    meeting_title: str = "Meeting Sync",
+    customer_name: str,
+    meeting_title: str,
 ) -> dict[str, Any]:
-    """Background task: Parse transcript via Groq LLM, persist candidate commitments, and publish event."""
-    logger.info(f"[Celery Worker] Starting transcript ingestion job: {job_id} for workspace {workspace_id}")
-
-    # 1. Update job status with 24-hour TTL in Redis
-    set_with_ttl_sync(f"job:{job_id}", {"status": "processing", "progress": 10}, ttl_seconds=86400)
-
-    # 2. Fix #2: Use synchronous extractor — no asyncio.run() blocking.
-    # Previously asyncio.run() created a nested event loop inside the Celery
-    # thread and blocked it for the full LLM HTTP round-trip (2–10 seconds).
-    # extract_candidates_sync() uses httpx.Client (blocking) directly.
-    extractor = PromiseExtractor()
-    try:
-        candidates = extractor.extract_candidates_sync(
-            transcript_text=transcript_text,
-            meeting_title=meeting_title,
-            default_customer=customer_name,
-        )
-    except Exception as exc:
-        logger.error(f"[Celery Worker] Extraction failed for job {job_id}: {exc}")
-        set_with_ttl_sync(f"job:{job_id}", {"status": "failed", "error": str(exc)}, ttl_seconds=86400)
-        try:
-            with Session(_sync_engine) as session:
-                from modules.ingestion.models import IngestionJob
-                db_job = session.execute(
-                    sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
-                ).scalar_one_or_none()
-                if db_job:
-                    db_job.status = "failed"
-                    # Preserve error details in DB so failed ingestion work is never lost silently
-                    db_job.candidates_json = {"error": str(exc), "status": "failed_dead_letter"}
-                    session.commit()
-        except Exception as db_err:
-            logger.warning(f"Failed to update IngestionJob status on failure: {db_err}")
-
-        publish_event_sync(
-            f"ws:{workspace_id}:events",
-            "INGESTION_FAILED",
-            {"job_id": job_id, "error": str(exc)},
-        )
-        raise self.retry(exc=exc)
-
-    # 3. Persist candidate commitments using the singleton engine (Fix #1)
+    """Helper: Run sync LLM promise extraction and persist candidates to DB."""
     from sqlalchemy import select as sa_select
     from modules.ingestion.models import IngestionJob
+
+    extractor = PromiseExtractor()
+    candidates = extractor.extract_candidates_sync(
+        transcript_text=transcript_text,
+        meeting_title=meeting_title,
+        default_customer=customer_name,
+    )
 
     created_count = 0
     with Session(_sync_engine) as session:
         for item in candidates:
-            # Parse the ISO date string from the extractor into a proper date object.
             _raw_date = item.get("promised_date_iso", "")
             _promised_date: date | None = None
             if _raw_date:
@@ -132,7 +95,6 @@ def process_transcript_ingestion(
             session.add(c)
             created_count += 1
 
-        # Update the IngestionJob row with real status, candidates count, and json
         db_job = session.execute(
             sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
         ).scalar_one_or_none()
@@ -143,7 +105,6 @@ def process_transcript_ingestion(
 
         session.commit()
 
-    # 4. Cache final job result in Redis with 24-hour TTL
     job_result = {
         "job_id": job_id,
         "status": "completed",
@@ -152,7 +113,6 @@ def process_transcript_ingestion(
     }
     set_with_ttl_sync(f"job:{job_id}", job_result, ttl_seconds=86400)
 
-    # 5. Broadcast real-time event to the workspace Pub/Sub channel
     publish_event_sync(
         f"ws:{workspace_id}:events",
         "INGESTION_COMPLETED",
@@ -161,6 +121,150 @@ def process_transcript_ingestion(
 
     logger.info(f"[Celery Worker] Successfully completed job {job_id}: {created_count} commitments created")
     return job_result
+
+
+@celery_app.task(bind=True, queue="ingestion", max_retries=3, default_retry_delay=30)
+def process_transcript_ingestion(
+    self,
+    job_id: str,
+    workspace_id: str,
+    transcript_text: str,
+    customer_name: str = "Acme",
+    meeting_title: str = "Meeting Sync",
+) -> dict[str, Any]:
+    """Background task: Parse transcript via Groq LLM, persist candidate commitments, and publish event."""
+    logger.info(f"[Celery Worker] Starting transcript ingestion job: {job_id} for workspace {workspace_id}")
+    set_with_ttl_sync(f"job:{job_id}", {"status": "processing", "progress": 10}, ttl_seconds=86400)
+
+    try:
+        return _extract_and_persist_commitments(
+            job_id=job_id,
+            workspace_id=workspace_id,
+            transcript_text=transcript_text,
+            customer_name=customer_name,
+            meeting_title=meeting_title,
+        )
+    except Exception as exc:
+        logger.error(f"[Celery Worker] Extraction failed for job {job_id}: {exc}")
+        set_with_ttl_sync(f"job:{job_id}", {"status": "failed", "error": str(exc)}, ttl_seconds=86400)
+        try:
+            with Session(_sync_engine) as session:
+                from sqlalchemy import select as sa_select
+                from modules.ingestion.models import IngestionJob
+                db_job = session.execute(
+                    sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
+                ).scalar_one_or_none()
+                if db_job:
+                    db_job.status = "failed"
+                    db_job.candidates_json = {"error": str(exc), "status": "failed_dead_letter"}
+                    session.commit()
+        except Exception as db_err:
+            logger.warning(f"Failed to update IngestionJob status on failure: {db_err}")
+
+        publish_event_sync(
+            f"ws:{workspace_id}:events",
+            "INGESTION_FAILED",
+            {"job_id": job_id, "error": str(exc)},
+        )
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, queue="ingestion", max_retries=3, default_retry_delay=30)
+def process_audio_ingestion(
+    self,
+    job_id: str,
+    workspace_id: str,
+    file_path: str,
+    customer_name: str = "Acme",
+    meeting_title: str = "Recorded Call",
+) -> dict[str, Any]:
+    """Background task: Transcribe audio file via STT connector, extract promises, and persist."""
+    logger.info(f"[Celery Worker] Starting audio ingestion job: {job_id} for workspace {workspace_id}")
+    from connectors.speech_to_text import SpeechToTextConnector
+
+    set_with_ttl_sync(f"job:{job_id}", {"status": "transcribing", "progress": 15}, ttl_seconds=86400)
+
+    try:
+        stt = SpeechToTextConnector()
+        transcript_text = stt.transcribe_file_sync(file_path)
+    except Exception as exc:
+        logger.error(f"[Celery Worker] Speech-to-text failed for job {job_id}: {exc}")
+        set_with_ttl_sync(f"job:{job_id}", {"status": "failed", "error": str(exc)}, ttl_seconds=86400)
+        try:
+            with Session(_sync_engine) as session:
+                from sqlalchemy import select as sa_select
+                from modules.ingestion.models import IngestionJob
+                db_job = session.execute(
+                    sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
+                ).scalar_one_or_none()
+                if db_job:
+                    db_job.status = "failed"
+                    db_job.candidates_json = {"error": str(exc), "status": "failed_dead_letter"}
+                    session.commit()
+        except Exception as db_err:
+            logger.warning(f"Failed to update IngestionJob status on failure: {db_err}")
+
+        publish_event_sync(
+            f"ws:{workspace_id}:events",
+            "INGESTION_FAILED",
+            {"job_id": job_id, "error": str(exc)},
+        )
+        raise self.retry(exc=exc)
+    finally:
+        # Guarantee audio file is removed from disk so storage is never leaked
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
+    # Update preview in IngestionJob
+    try:
+        with Session(_sync_engine) as session:
+            from sqlalchemy import select as sa_select
+            from modules.ingestion.models import IngestionJob
+            db_job = session.execute(
+                sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
+            ).scalar_one_or_none()
+            if db_job:
+                db_job.transcript_preview = transcript_text[:300]
+                session.commit()
+    except Exception as preview_err:
+        logger.warning(f"Failed to update transcript preview: {preview_err}")
+
+    # Run promise extraction and persistence
+    try:
+        return _extract_and_persist_commitments(
+            job_id=job_id,
+            workspace_id=workspace_id,
+            transcript_text=transcript_text,
+            customer_name=customer_name,
+            meeting_title=meeting_title,
+        )
+    except Exception as exc:
+        logger.error(f"[Celery Worker] Extraction failed for audio job {job_id}: {exc}")
+        set_with_ttl_sync(f"job:{job_id}", {"status": "failed", "error": str(exc)}, ttl_seconds=86400)
+        try:
+            with Session(_sync_engine) as session:
+                from sqlalchemy import select as sa_select
+                from modules.ingestion.models import IngestionJob
+                db_job = session.execute(
+                    sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
+                ).scalar_one_or_none()
+                if db_job:
+                    db_job.status = "failed"
+                    db_job.candidates_json = {"error": str(exc), "status": "failed_dead_letter"}
+                    session.commit()
+        except Exception as db_err:
+            logger.warning(f"Failed to update IngestionJob status on failure: {db_err}")
+
+        publish_event_sync(
+            f"ws:{workspace_id}:events",
+            "INGESTION_FAILED",
+            {"job_id": job_id, "error": str(exc)},
+        )
+        raise self.retry(exc=exc)
+
 
 
 @celery_app.task(bind=True, queue="high_priority", max_retries=2)

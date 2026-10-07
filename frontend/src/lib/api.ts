@@ -57,11 +57,123 @@ export interface GoogleAuthPayload {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  rawDetail?: any;
+  userMessage: string;
+
+  constructor(status: number, message: string, rawDetail?: any) {
     super(message);
     this.status = status;
+    this.rawDetail = rawDetail;
+    this.userMessage = message;
     this.name = 'ApiError';
   }
+}
+
+/**
+ * Translates raw backend HTTP and Pydantic validation errors into
+ * plain, friendly, and actionable explanations for users.
+ */
+export function formatApiErrorMessage(
+  status: number,
+  errorData: any,
+  statusText?: string
+): string {
+  // 1. Connection / Network failure (status = 0 or aborted)
+  if (status === 0) {
+    return 'Unable to connect to PromiseCheck. Please check your internet connection and verify that the backend server is running.';
+  }
+
+  // 2. Extract error payload detail if present
+  const detail = errorData?.detail ?? errorData?.message ?? errorData?.error;
+
+  // Case A: FastAPI / Pydantic validation error array (status 422 or 400)
+  if (Array.isArray(detail) && detail.length > 0) {
+    const errorItems = detail.map((item: any) => {
+      if (typeof item === 'string') return item;
+      const rawLoc = Array.isArray(item?.loc) ? item.loc : [];
+      // Get the leaf field name (ignore 'body', 'query', etc.)
+      const field = rawLoc
+        .filter((p: any) => p !== 'body' && p !== 'query' && p !== 'path')
+        .pop();
+      const fieldLabel = field
+        ? String(field)
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (char) => char.toUpperCase())
+        : 'Input';
+
+      let msg = item?.msg || item?.message || 'is invalid';
+      if (typeof msg === 'string') {
+        if (msg.startsWith('value is not a valid ')) {
+          msg = `Please provide a valid ${msg.replace('value is not a valid ', '')}`;
+        } else if (msg === 'Field required') {
+          msg = 'This field is required';
+        }
+      }
+
+      return `${fieldLabel}: ${msg}`;
+    });
+
+    return `Please check your input:\n• ${errorItems.join('\n• ')}`;
+  }
+
+  // Case B: Detail is a structured object
+  if (detail && typeof detail === 'object') {
+    if (typeof detail.message === 'string') return detail.message;
+    if (typeof detail.error === 'string') return detail.error;
+    if (typeof detail.msg === 'string') return detail.msg;
+  }
+
+  // Case C: Detail is a plain string
+  if (typeof detail === 'string' && detail.trim().length > 0) {
+    let cleanDetail = detail.trim();
+    // Strip technical prefixes if present
+    cleanDetail = cleanDetail.replace(/^(error:\s*|exception:\s*|\[.*?\]:\s*)/i, '');
+    return cleanDetail;
+  }
+
+  // Case D: Fallback to contextual human explanation based on HTTP status
+  switch (status) {
+    case 400:
+      return 'The request could not be completed. Please review the submitted details.';
+    case 401:
+      return 'Your session has expired or you are not signed in. Please log in again to continue.';
+    case 403:
+      return 'Access restricted: You do not have permission to perform this action in this workspace.';
+    case 404:
+      return 'The requested resource or integration could not be found.';
+    case 408:
+      return 'The request timed out. Please try again.';
+    case 409:
+      return 'A conflict occurred. A record with this information already exists.';
+    case 413:
+      return 'File size exceeds the 200 MB maximum limit. Please upload a smaller file.';
+    case 422:
+      return 'Some form fields contain invalid information. Please review and try again.';
+    case 429:
+      return 'Too many requests. Please wait a moment before trying again.';
+    case 500:
+      return 'The server encountered an unexpected error. Please try again in a few moments.';
+    case 502:
+    case 503:
+    case 504:
+      return 'External service or gateway is temporarily unavailable. Please verify your integration credentials and try again.';
+    default:
+      return statusText || 'An unexpected error occurred. Please try again.';
+  }
+}
+
+/**
+ * Convenience helper to extract a friendly error message from any caught error.
+ */
+export function explainError(error: unknown, fallback = 'An unexpected error occurred.'): string {
+  if (!error) return fallback;
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && 'message' in (error as any)) {
+    return String((error as any).message);
+  }
+  return fallback;
 }
 
 // In-memory token storage with localStorage persistence for browser tabs
@@ -106,11 +218,20 @@ async function request<T>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include', // Transmit HttpOnly refresh cookie across origins
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include', // Transmit HttpOnly refresh cookie across origins
+    });
+  } catch (networkErr: any) {
+    throw new ApiError(
+      0,
+      'Unable to connect to PromiseCheck server. Please check your network connection or verify that the backend is active.',
+      networkErr
+    );
+  }
 
   // Transparent 401 Auto-Refresh Interceptor
   if (
@@ -138,14 +259,18 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    let errorMessage = 'An error occurred';
+    let errorData: any = null;
     try {
-      const errorData = await response.json();
-      errorMessage = errorData.detail || errorData.message || errorMessage;
+      errorData = await response.json();
     } catch {
-      errorMessage = response.statusText || errorMessage;
+      // Body is not JSON
     }
-    throw new ApiError(response.status, errorMessage);
+    const friendlyMessage = formatApiErrorMessage(
+      response.status,
+      errorData,
+      response.statusText
+    );
+    throw new ApiError(response.status, friendlyMessage, errorData);
   }
 
   if (response.status === 204) {

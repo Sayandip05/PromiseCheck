@@ -1,11 +1,11 @@
-"""Jira Cloud Integration Connector with Live REST API and Fluent Fallback."""
+"""Jira Cloud Integration Connector with Live REST API."""
 
 import os
 from typing import Any, Optional
 
 import httpx
 
-from connectors.base import BaseConnector
+from connectors.base import BaseConnector, ConnectorDeliveryError, ConnectorNotConfiguredError
 from core.logging import get_logger
 
 logger = get_logger("connector.jira")
@@ -39,8 +39,7 @@ class JiraConnector(BaseConnector):
         token = credentials.get("api_token", self.api_token)
 
         if not (domain and email and token):
-            logger.warning("[Jira] Missing domain/email/token — credentials not configured.")
-            return False
+            raise ConnectorNotConfiguredError("Jira connector requires domain, email, and API token.")
 
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
@@ -48,53 +47,52 @@ class JiraConnector(BaseConnector):
                     f"https://{domain}/rest/api/3/myself",
                     auth=(email, token),
                 )
-                return res.status_code == 200
+                if res.status_code != 200:
+                    raise ConnectorDeliveryError(f"Jira credential verification failed: HTTP {res.status_code}")
+                return True
+        except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+            raise
         except Exception as exc:
-            logger.warning(f"[Jira] Credential verification failed: {exc}")
-            return False
+            raise ConnectorDeliveryError(f"Jira verification error: {exc}")
 
     async def get_ticket(self, key: str) -> dict[str, Any]:
         """Fetch issue details by issue key (e.g. 'ENG-104')."""
-        if self.is_configured:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    res = await client.get(
-                        f"https://{self.domain}/rest/api/3/issue/{key}",
-                        auth=(self.email, self.api_token),
-                    )
-                    if res.status_code == 200:
-                        data = res.json()
-                        fields = data.get("fields", {})
-                        return {
-                            "id": data.get("id"),
-                            "key": data.get("key"),
-                            "summary": fields.get("summary"),
-                            "status": fields.get("status", {}).get("name", "In Progress"),
-                            "assignee": fields.get("assignee", {}).get("displayName", "Unassigned"),
-                            "due_date": fields.get("duedate"),
-                            "source": "live_jira_api",
-                        }
-            except Exception as exc:
-                logger.error(f"[Jira] Failed to query live issue {key}: {exc}")
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Jira is not configured. Supply Jira domain, email, and API token.")
 
-        # Fluent fallback
-        return {
-            "id": f"mock-jira-{key}",
-            "key": key,
-            "summary": f"Engineering deliverable for {key}",
-            "status": "In Progress",
-            "assignee": "Engineering Lead",
-            "due_date": "2026-10-20",
-            "source": "fluent_mock",
-        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(
+                    f"https://{self.domain}/rest/api/3/issue/{key}",
+                    auth=(self.email, self.api_token),
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    fields = data.get("fields", {})
+                    return {
+                        "id": data.get("id"),
+                        "key": data.get("key"),
+                        "summary": fields.get("summary"),
+                        "status": fields.get("status", {}).get("name", "In Progress"),
+                        "assignee": fields.get("assignee", {}).get("displayName", "Unassigned"),
+                        "due_date": fields.get("duedate"),
+                        "source": "live_jira_api",
+                    }
+                raise ConnectorDeliveryError(f"Jira issue '{key}' query failed: HTTP {res.status_code} {res.text}")
+        except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+            raise
+        except Exception as exc:
+            raise ConnectorDeliveryError(f"Jira API error querying '{key}': {exc}")
 
     async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Jira is not configured.")
         logger.info(f"[Jira] Starting initial sync for workspace {workspace_id}")
         return {
-            "tickets_synced": 4,
+            "tickets_synced": 0,
             "project_key": resource_id or "ENG",
-            "status": "active" if self.is_configured else "fluent_mock",
+            "status": "active",
         }
 
     async def reconcile(self, workspace_id: str) -> dict[str, Any]:
-        return {"tickets_reconciled": 4, "status": "synchronized"}
+        return {"tickets_reconciled": 0, "status": "synchronized"}

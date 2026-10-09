@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from connectors.base import BaseConnector
+from connectors.base import BaseConnector, ConnectorDeliveryError, ConnectorNotConfiguredError
 from core.logging import get_logger
 
 logger = get_logger("connector.slack")
@@ -37,8 +37,7 @@ class SlackConnector(BaseConnector):
         token = credentials.get("bot_token", self.bot_token)
         webhook = credentials.get("webhook_url", self.webhook_url)
         if not token and not webhook:
-            logger.warning("[Slack] No token or webhook supplied — credentials not configured.")
-            return False
+            raise ConnectorNotConfiguredError("Slack connector requires a bot_token or webhook_url.")
 
         if token:
             try:
@@ -48,10 +47,13 @@ class SlackConnector(BaseConnector):
                         headers={"Authorization": f"Bearer {token}"},
                     )
                     data = res.json()
-                    return data.get("ok", False)
+                    if not data.get("ok"):
+                        raise ConnectorDeliveryError(f"Slack auth test failed: {data.get('error', 'invalid credentials')}")
+                    return True
+            except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+                raise
             except Exception as exc:
-                logger.warning(f"[Slack] Token auth test failed: {exc}")
-                return False
+                raise ConnectorDeliveryError(f"Slack connection failed: {exc}")
 
         return True
 
@@ -62,6 +64,9 @@ class SlackConnector(BaseConnector):
         blocks: Optional[list[dict[str, Any]]] = None,
     ) -> dict[str, Any]:
         """Send message or rich block payload to configured Slack channel."""
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Slack is not configured. Supply a bot token or webhook URL.")
+
         target_channel = channel or self.default_channel
 
         # 1. Real Webhook execution if available
@@ -71,8 +76,11 @@ class SlackConnector(BaseConnector):
                     res = await client.post(self.webhook_url, json={"text": text, "blocks": blocks})
                     if res.status_code == 200:
                         return {"status": "delivered", "provider": "slack_webhook"}
+                    raise ConnectorDeliveryError(f"Slack webhook rejected payload: HTTP {res.status_code} {res.text}")
+            except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+                raise
             except Exception as exc:
-                logger.error(f"[Slack] Webhook delivery error: {exc}")
+                raise ConnectorDeliveryError(f"Slack webhook delivery error: {exc}")
 
         # 2. Real Bot Token execution if available
         if self.bot_token:
@@ -89,12 +97,13 @@ class SlackConnector(BaseConnector):
                     data = res.json()
                     if data.get("ok"):
                         return {"status": "delivered", "ts": data.get("ts"), "channel": target_channel}
+                    raise ConnectorDeliveryError(f"Slack chat.postMessage failed: {data.get('error', 'unknown error')}")
+            except (ConnectorNotConfiguredError, ConnectorDeliveryError):
+                raise
             except Exception as exc:
-                logger.error(f"[Slack] Bot message delivery error: {exc}")
+                raise ConnectorDeliveryError(f"Slack API error: {exc}")
 
-        # 3. Fluent pre-credential logging
-        logger.info(f"[Slack Mock Delivery] Channel: {target_channel} | Message: {text}")
-        return {"status": "delivered_fluent_mock", "channel": target_channel, "text": text}
+        raise ConnectorNotConfiguredError("Slack connector credentials invalid or missing.")
 
     async def send_commitment_alert(
         self,
@@ -115,7 +124,9 @@ class SlackConnector(BaseConnector):
         return await self.post_message(text=f"{header}\n{body}")
 
     async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:
-        return {"status": "active" if self.is_configured else "fluent_mock", "channel": self.default_channel}
+        if not self.is_configured:
+            raise ConnectorNotConfiguredError("Slack is not configured.")
+        return {"status": "active", "channel": self.default_channel}
 
     async def reconcile(self, workspace_id: str) -> dict[str, Any]:
         return {"status": "synchronized"}

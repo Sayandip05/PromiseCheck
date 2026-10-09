@@ -1,18 +1,16 @@
 """Audit trail router with compliance tracking and timeline events."""
 
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.security import get_current_user_optional
+from core.security import get_current_user
 from modules.audit.models import AuditEvent
-from modules.audit.service import record_audit_event
 from modules.identity.models import User
 from modules.workspaces.service import get_active_workspace_id
 
@@ -36,70 +34,22 @@ class AuditEventDTO(BaseModel):
     payload: dict[str, Any] = {}
 
 
-
-async def _seed_audit_events_if_empty(db: AsyncSession, workspace_id: uuid.UUID):
-    """Seed initial compliance activity logs if empty."""
-    res = await db.execute(select(AuditEvent).where(AuditEvent.workspace_id == workspace_id).limit(1))
-    if res.scalar_one_or_none():
-        return
-
-    dummy_actor = uuid.uuid4()
-    seeds = [
-        AuditEvent(
-            workspace_id=workspace_id,
-            actor_id=dummy_actor,
-            action="ticket_synced",
-            target_type="jira",
-            target_id="ENG-1042",
-            description="Jira sync updated target delivery to Oct 05",
-            payload={"source": "Jira · 10 min ago", "timeAgo": "10 min ago"},
-        ),
-        AuditEvent(
-            workspace_id=workspace_id,
-            actor_id=dummy_actor,
-            action="commitment_confirmed",
-            target_type="commitment",
-            target_id="comm-1",
-            description="Maya confirmed the SSO commitment",
-            payload={"source": "Manual review · Yesterday", "timeAgo": "Yesterday"},
-        ),
-        AuditEvent(
-            workspace_id=workspace_id,
-            actor_id=dummy_actor,
-            action="transcript_imported",
-            target_type="ingestion",
-            target_id="rec-meet-8823",
-            description="Acme onboarding transcript imported",
-            payload={"source": "Google Meet · Yesterday", "timeAgo": "Yesterday"},
-        ),
-        AuditEvent(
-            workspace_id=workspace_id,
-            actor_id=dummy_actor,
-            action="alert_dispatched",
-            target_type="slack",
-            target_id="#customer-commitments",
-            description="Slack alert dispatched to #customer-commitments",
-            payload={"source": "Slack · 2 days ago", "timeAgo": "2 days ago"},
-        ),
-    ]
-    db.add_all(seeds)
-    await db.commit()
-
-
 @router.get("", response_model=list[AuditEventDTO])
 async def list_audit_events(
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of audit events to return"),
+    offset: int = Query(0, ge=0, description="Number of events to skip for pagination"),
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
-    """Retrieve immutable audit and compliance trail for the workspace."""
+    """Retrieve immutable audit and compliance trail for the workspace. Pure, idempotent read."""
     ws_id = await get_active_workspace_id(db, user)
-    await _seed_audit_events_if_empty(db, ws_id)
 
     res = await db.execute(
         select(AuditEvent)
         .where(AuditEvent.workspace_id == ws_id)
         .order_by(desc(AuditEvent.created_at))
-        .limit(50)
+        .offset(offset)
+        .limit(limit)
     )
     events = res.scalars().all()
 
@@ -110,7 +60,6 @@ async def list_audit_events(
             action=e.action,
             target_type=e.target_type,
             target_id=e.target_id,
-            # description now comes from the dedicated column, not JSONB payload
             description=e.description or f"{e.action} on {e.target_type}",
             source=(e.payload or {}).get("source", "System"),
             timeAgo=(e.payload or {}).get("timeAgo", "Recently"),

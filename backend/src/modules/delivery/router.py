@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.redis import publish_event
-from core.security import get_current_user, get_current_user_optional
+from core.security import get_current_user
 from modules.audit.service import record_audit_event
 from modules.commitments.models import Commitment
 from modules.delivery.models import DeliveryEvidence
@@ -50,7 +50,7 @@ class VerifyDeliveryRequest(BaseModel):
 @router.get("/evidence", response_model=list[DeliveryEvidenceResponse])
 async def list_delivery_evidence(
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List verified delivery records for the active workspace."""
     ws_id = await get_active_workspace_id(db, user)
@@ -118,12 +118,12 @@ async def list_delivery_evidence(
 async def verify_commitment_delivery(
     payload: VerifyDeliveryRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Officially mark a commitment delivered and store verified evidence proof."""
     ws_id = await get_active_workspace_id(db, user)
     c = await db.get(Commitment, payload.commitment_id)
-    if not c:
+    if not c or c.workspace_id != ws_id:
         raise HTTPException(status_code=404, detail="Commitment not found")
 
     # 1. Update commitment status to delivered

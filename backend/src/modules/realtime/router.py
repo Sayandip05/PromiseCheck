@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.logging import get_logger
 from core.redis import publish_event, set_with_ttl, get_value, subscribe_channel
-from core.security import decode_token
+from core.security import decode_token, get_current_user
 from modules.identity.models import User
 from modules.workspaces.service import get_active_workspace_id
 
@@ -35,17 +35,32 @@ async def sse_event_stream(
     reconnect_last_id = request.headers.get("Last-Event-ID") or last_event_id
 
     workspace_id: uuid.UUID
-    if raw_token:
-        try:
-            payload = decode_token(raw_token, expected_type="access")
-            user_id = uuid.UUID(payload["sub"])
-            user_res = await db.execute(select(User).where(User.id == user_id))
-            user = user_res.scalar_one_or_none()
-            workspace_id = await get_active_workspace_id(db, user)
-        except Exception:
-            workspace_id = await get_active_workspace_id(db, None)
-    else:
-        workspace_id = await get_active_workspace_id(db, None)
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Valid authentication token required for SSE stream",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        payload = decode_token(raw_token, expected_type="access")
+        user_id = uuid.UUID(payload["sub"])
+        user_res = await db.execute(select(User).where(User.id == user_id))
+        user = user_res.scalar_one_or_none()
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or account deactivated",
+            )
+        workspace_id = await get_active_workspace_id(db, user)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid SSE authentication token: {exc}",
+        )
+
 
     channel_name = f"ws:{workspace_id}:events"
     logger.info(f"Opening SSE connection for workspace {workspace_id} on channel '{channel_name}'")
@@ -123,9 +138,10 @@ async def test_publish_event(
     event_type: str = "TEST_EVENT",
     message: str = "Test real-time message",
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Test utility to publish a message into Redis Pub/Sub."""
-    workspace_id = await get_active_workspace_id(db, None)
+    workspace_id = await get_active_workspace_id(db, user)
     receivers = await publish_event(
         f"ws:{workspace_id}:events",
         event_type,
@@ -134,3 +150,4 @@ async def test_publish_event(
     # Also test TTL key set
     await set_with_ttl(f"test:ping:{uuid.uuid4().hex[:6]}", {"msg": message}, ttl_seconds=60)
     return {"status": "published", "receivers": receivers, "channel": f"ws:{workspace_id}:events"}
+

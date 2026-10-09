@@ -1,29 +1,24 @@
-"""Base connector contract for external third-party integrations."""
+"""Legacy compatibility module for third-party connector interface.
 
-from abc import ABC, abstractmethod
-from typing import Any
+FEATURE NOTICE:
+This module has been renamed to `connectors.connector_interface` to provide
+unambiguous, feature-based naming for engineers and avoid generic code-centric terms like 'base'.
 
+Please import directly from `connectors.connector_interface` in all new code.
+"""
 
-class BaseConnector(ABC):
-    """Abstract interface implemented by all third-party provider connectors."""
+from connectors.connector_interface import (
+    BaseConnector,
+    ConnectorAuthenticationError,
+    ConnectorDeliveryError,
+    ConnectorError,
+    ConnectorNotConfiguredError,
+)
 
-    @property
-    @abstractmethod
-    def provider_name(self) -> str:
-        """Unique provider identifier (e.g. 'google_meet', 'jira', 'linear')."""
-        pass
-
-    @abstractmethod
-    async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
-        """Validate connection credentials against the remote provider API."""
-        pass
-
-    @abstractmethod
-    async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:
-        """Perform initial historical sync of authorized resources."""
-        pass
-
-    @abstractmethod
-    async def reconcile(self, workspace_id: str) -> dict[str, Any]:
-        """Reconcile local state with remote provider to catch missed events."""
-        pass
+__all__ = [
+    "BaseConnector",
+    "ConnectorError",
+    "ConnectorNotConfiguredError",
+    "ConnectorAuthenticationError",
+    "ConnectorDeliveryError",
+]

@@ -48,6 +48,11 @@ class Membership(Base):
     workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="memberships")
 
 
+# Backwards compatibility alias
+WorkspaceMember = Membership
+
+
+
 class Invitation(Base):
     """Pending email invitation to join a workspace."""
 

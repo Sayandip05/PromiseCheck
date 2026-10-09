@@ -5,6 +5,7 @@ import hashlib
 import secrets
 import uuid
 from typing import Optional
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,42 +111,69 @@ async def invalidate_workspace_cache(user_id: uuid.UUID) -> None:
         pass  # Redis unavailable — no-op; cache will expire naturally
 
 
-async def get_active_workspace_id(db: AsyncSession, user: Optional[User] = None) -> uuid.UUID:
-    """Get active workspace ID or fallback to first existing workspace.
+async def get_active_workspace_id(
+    db: AsyncSession,
+    user: Optional[User] = None,
+    workspace_id: Optional[uuid.UUID] = None,
+) -> uuid.UUID:
+    """Resolve active tenant workspace ID with strict multi-tenant isolation.
 
-    Fix #7: Checks a Redis cache key (ws_id_cache:{user_id}, 5-min TTL) before
-    executing the membership DB query. At 1,000 RPS this previously caused 1,000
-    unnecessary DB reads/sec. Cache miss occurs only on first request after login
-    or workspace membership change.
+    Guarantees:
+    - 401 Unauthorized if user is None.
+    - 403 Forbidden if user requests a workspace they do not belong to.
+    - 403 Forbidden if user has no workspace memberships.
+    - Zero phantom fallbacks (Workspace.limit(1) completely eliminated).
     """
-    if user:
-        cache_key = f"ws_id_cache:{user.id}"
-        try:
-            cached = await get_value(cache_key)
-            if cached:
-                return uuid.UUID(cached)
-        except Exception:
-            pass  # Redis unavailable — proceed to DB lookup
+    if user is None or not hasattr(user, "id") or not getattr(user, "id", None):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access workspace data",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-        mem_res = await db.execute(select(Membership).where(Membership.user_id == user.id))
+
+    # 1. If explicit workspace requested (e.g. from X-Workspace-Id header), verify membership
+    if workspace_id:
+        mem_stmt = select(Membership).where(
+            Membership.user_id == user.id,
+            Membership.workspace_id == workspace_id,
+        )
+        mem_res = await db.execute(mem_stmt)
         mem = mem_res.scalar_one_or_none()
-        if mem:
-            try:
-                await set_with_ttl(cache_key, str(mem.workspace_id), ttl_seconds=300)
-            except Exception:
-                pass  # Redis unavailable — no-op, just don't cache
-            return mem.workspace_id
+        if not mem:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: User is not a member of the requested workspace",
+            )
+        return workspace_id
 
-    ws_res = await db.execute(select(Workspace).limit(1))
-    ws = ws_res.scalar_one_or_none()
-    if ws:
-        return ws.id
+    # 2. Check Redis cached active workspace for user
+    cache_key = f"ws_id_cache:{user.id}"
+    try:
+        cached = await get_value(cache_key)
+        if cached:
+            return uuid.UUID(cached)
+    except Exception:
+        pass  # Redis unavailable — proceed to DB lookup
 
-    # Create fallback default workspace
-    fallback_ws = Workspace(name="Acme Corp", slug="acme-corp-main")
-    db.add(fallback_ws)
-    await db.flush()
-    return fallback_ws.id
+    # 3. Lookup user's workspace membership from database
+    mem_res = await db.execute(
+        select(Membership).where(Membership.user_id == user.id).limit(1)
+    )
+    mem = mem_res.scalar_one_or_none()
+    if mem:
+        try:
+            await set_with_ttl(cache_key, str(mem.workspace_id), ttl_seconds=300)
+        except Exception:
+            pass
+        return mem.workspace_id
+
+    # 4. If user has no active memberships, fail fast with 403 Forbidden
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No active workspace membership found for this user",
+    )
 
 
 _get_active_workspace_id = get_active_workspace_id
+

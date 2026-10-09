@@ -14,6 +14,7 @@ import bcrypt
 import jwt
 from fastapi import Cookie, Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -333,4 +334,43 @@ async def get_current_user_optional(
         return None
     except Exception:
         return None
+
+
+def require_role(min_role: Role):
+    """FastAPI dependency enforcing a minimum RBAC role in the caller's active workspace.
+
+    Hierarchy: VIEWER (1) < MEMBER (2) < MANAGER (3) < ADMIN (4)
+    """
+    role_levels = {
+        Role.VIEWER: 1,
+        Role.MEMBER: 2,
+        Role.MANAGER: 3,
+        Role.ADMIN: 4,
+    }
+
+    async def _role_guard(
+        user: Any = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> Any:
+        from modules.workspaces.models import Membership
+
+        stmt = select(Membership).where(Membership.user_id == user.id)
+        res = await db.execute(stmt)
+        mem = res.scalar_one_or_none()
+        if not mem:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User has no workspace membership",
+            )
+        current_level = role_levels.get(mem.role, 0)
+        required_level = role_levels.get(min_role, 0)
+        if current_level < required_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: Action requires at least {min_role.value} role",
+            )
+        return user
+
+    return _role_guard
+
 

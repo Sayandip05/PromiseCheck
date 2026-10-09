@@ -23,3 +23,15 @@ class WorkspaceIntegration(Base, TenantMixin):
     channel_or_scope: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     config_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+
+    def get_decrypted_config(self) -> dict:
+        """Return decrypted credentials and configuration dict in-memory."""
+        from core.secret_encryption import decrypt_config_dict
+        return decrypt_config_dict(self.config_json or {})
+
+    def set_encrypted_config(self, cfg: dict) -> None:
+        """Encrypt sensitive fields in credentials dict before persisting to config_json."""
+        from core.secret_encryption import encrypt_config_dict
+        self.config_json = encrypt_config_dict(cfg or {})
+
+

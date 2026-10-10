@@ -9,11 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.security import get_current_user_optional
+from core.security import get_current_user
 from modules.commitments.models import Commitment
 from modules.customers.models import Customer
 from modules.identity.models import User
 from modules.workspaces.service import get_active_workspace_id
+from sqlalchemy import func
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -43,71 +44,6 @@ class CustomerCreateRequest(BaseModel):
     due_date: Optional[str] = ""
 
 
-
-
-async def _seed_default_customers(db: AsyncSession, workspace_id: uuid.UUID):
-    """Seed standard enterprise customer accounts if empty."""
-    res = await db.execute(select(Customer).where(Customer.workspace_id == workspace_id).limit(1))
-    if res.scalar_one_or_none():
-        return
-
-    seeds = [
-        Customer(
-            workspace_id=workspace_id,
-            name="Aurora Tech Inc.",
-            status="on-track",
-            status_color="#10b981",
-            active_promises=5,
-            health_score=98,
-            recent_promise="Deliver SOC2 Type II Report",
-            due_date="Sep 18, 2026",
-            owner="Sarah Lin",
-            domains_json=["auroratech.io"],
-        ),
-        Customer(
-            workspace_id=workspace_id,
-            name="Maplewood Imports LLC",
-            status="at-risk",
-            status_color="#f59e0b",
-            active_promises=3,
-            health_score=71,
-            recent_promise="Custom EDI Inventory Sync Gateway",
-            due_date="Sep 21, 2026",
-            owner="David Chen",
-            domains_json=["maplewoodimports.com"],
-        ),
-        Customer(
-            workspace_id=workspace_id,
-            name="OceanView Enterprises Ltd.",
-            status="review",
-            status_color="#525252",
-            active_promises=4,
-            health_score=89,
-            recent_promise="Single Sign-On SAML Multi-domain",
-            due_date="Sep 28, 2026",
-            owner="Alex Rivera",
-            domains_json=["oceanview.co"],
-        ),
-        Customer(
-            workspace_id=workspace_id,
-            name="Northstar Labs",
-            status="at-risk",
-            status_color="#f59e0b",
-            active_promises=2,
-            health_score=68,
-            recent_promise="Export compliance audit logs",
-            due_date="Sep 22, 2026",
-            owner="Daniel Stone",
-            domains_json=["northstarlabs.com"],
-        ),
-    ]
-    db.add_all(seeds)
-    await db.commit()
-
-
-from sqlalchemy import func
-
-
 @router.get("", response_model=list[CustomerDTO])
 async def list_customers(
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
@@ -119,11 +55,10 @@ async def list_customers(
     ),
     response: Response = None,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List customer accounts for the active workspace with live commitment health scores and pagination."""
     ws_id = await get_active_workspace_id(db, user)
-    await _seed_default_customers(db, ws_id)
 
     # Count total customers for the active workspace
     count_res = await db.execute(
@@ -208,7 +143,7 @@ async def list_customers(
 async def create_customer(
     payload: CustomerCreateRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Create a new customer account."""
     ws_id = await get_active_workspace_id(db, user)
@@ -245,7 +180,7 @@ async def create_customer(
 async def get_customer(
     customer_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Retrieve an individual customer account profile with workspace authorization."""
     ws_id = await get_active_workspace_id(db, user)

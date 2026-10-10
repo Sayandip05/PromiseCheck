@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.redis import publish_event
-from core.security import get_current_user_optional
+from core.security import get_current_user
 from modules.audit.service import record_audit_event
 from modules.commitments.models import Commitment
 from modules.identity.models import User
@@ -44,7 +44,7 @@ class RiskEvaluationSummary(BaseModel):
 @router.get("/assessments", response_model=list[RiskAssessmentResponse])
 async def list_risk_assessments(
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List current commitment risk evaluations."""
     ws_id = await get_active_workspace_id(db, user)
@@ -78,7 +78,7 @@ async def list_risk_assessments(
 @router.post("/evaluate", response_model=RiskEvaluationSummary)
 async def evaluate_workspace_risk(
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Scan all active commitments, calculate timeline risks, update statuses, and log audit events."""
     ws_id = await get_active_workspace_id(db, user)

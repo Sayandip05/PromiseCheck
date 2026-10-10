@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.redis import get_async_redis
-from core.security import get_current_user, get_current_user_optional
+from core.security import get_current_user
 from modules.commitments.models import Commitment
 from modules.commitments.schemas import (
     CommitmentCreateRequest,
@@ -105,206 +105,6 @@ def _to_dto(c: Commitment) -> CommitmentDTO:
 _get_active_workspace_id = get_active_workspace_id
 
 
-async def _seed_default_commitments_if_empty(db: AsyncSession, workspace_id: uuid.UUID):
-    """Seed initial high-fidelity commitments if table is empty for instant UX vibrancy.
-
-    Fix #8: Guards with a Redis distributed lock (nx=True, ex=10) and a permanent
-    'seeded' marker so:
-    - Concurrent first-requests don't race to insert duplicate seeds.
-    - Subsequent requests skip the DB check entirely (fast Redis EXISTS, no query).
-    """
-    try:
-        r = get_async_redis()
-        seeded_key = f"seeded:{workspace_id}"
-        lock_key = f"seed_lock:{workspace_id}"
-
-        # Fast exit: workspace was already seeded — no DB round-trip needed
-        if await r.exists(seeded_key):
-            return
-
-        # Acquire distributed lock: SET NX EX 10
-        # Only one worker proceeds; others see the lock and bail out.
-        acquired = await r.set(lock_key, "1", nx=True, ex=10)
-        if not acquired:
-            return  # Another worker holds the lock and is seeding right now
-    except Exception:
-        # Redis unavailable: fall through to the DB check (safe, just not optimised)
-        r = None
-        acquired = True
-        seeded_key = lock_key = None
-
-    try:
-        res = await db.execute(select(Commitment).where(Commitment.workspace_id == workspace_id).limit(1))
-        if res.scalar_one_or_none():
-            if r and seeded_key:
-                await r.set(seeded_key, "1")  # Back-fill marker for future requests
-            return
-
-        seeds = [
-        Commitment(
-            workspace_id=workspace_id,
-            title="Enable SSO",
-            customer_name="Acme",
-            owner_name="Maya Chen",
-            owner_email="maya@acme.corp",
-            promised_by="Sep 30, 2026",
-            promised_date=date(2026, 9, 30),
-            status="at-risk",
-            status_label="At risk",
-            is_confirmed=True,
-            category="needs-attention",
-            ticket_id="ENG-1042",
-            ticket_status="In progress",
-            has_conflict=True,
-            conflict_days=5,
-            quote="We'll enable SSO for your team by September 30.",
-            original_promise_json={
-                "quote": "We'll enable SSO for your team by September 30.",
-                "sourceTitle": "Acme onboarding",
-                "timestamp": "Sep 18 · 14:32",
-                "transcriptId": "rec-meet-8823",
-            },
-            engineering_evidence_json={
-                "ticketId": "ENG-1042",
-                "ticketTitle": "SSO rollout",
-                "status": "In progress",
-                "targetDelivery": "Oct 05, 2026",
-                "syncedAt": "2 min ago",
-                "provider": "jira",
-                "ticketUrl": "https://jira.atlassian.net/browse/ENG-1042",
-            },
-            risk_json={
-                "hasConflict": True,
-                "conflictTitle": "Delivery date conflict",
-                "conflictDescription": "The delivery target is 5 days after the promised date.",
-                "daysDiscrepancy": 5,
-            },
-            recommended_step_json={
-                "text": "Ask Maya to confirm the revised timeline.",
-                "actionType": "draft_update",
-            },
-        ),
-        Commitment(
-            workspace_id=workspace_id,
-            title="Export audit logs",
-            customer_name="Northstar",
-            owner_name="Daniel Stone",
-            owner_email="daniel@northstar.io",
-            promised_by="Sep 22, 2026",
-            promised_date=date(2026, 9, 22),
-            status="overdue",
-            status_label="Overdue",
-            is_confirmed=True,
-            category="needs-attention",
-            ticket_id="ENG-988",
-            ticket_status="Blocked",
-            has_conflict=True,
-            conflict_days=2,
-            quote="We will export and deliver full compliance audit logs by September 22nd.",
-            original_promise_json={
-                "quote": "We will export and deliver full compliance audit logs by September 22nd.",
-                "sourceTitle": "Security review call",
-                "timestamp": "Sep 14 · 10:15",
-                "transcriptId": "rec-meet-8741",
-            },
-            engineering_evidence_json={
-                "ticketId": "ENG-988",
-                "ticketTitle": "Audit log exporter pipeline",
-                "status": "Blocked",
-                "targetDelivery": "Sep 24, 2026",
-                "syncedAt": "15 min ago",
-                "provider": "jira",
-                "ticketUrl": "https://jira.atlassian.net/browse/ENG-988",
-            },
-            risk_json={
-                "hasConflict": True,
-                "conflictTitle": "Commitment overdue",
-                "conflictDescription": "Promised deadline passed. Downstream customer compliance depends on this export.",
-                "daysDiscrepancy": 2,
-            },
-            recommended_step_json={
-                "text": "Send proactive delay update to Northstar compliance lead.",
-                "actionType": "draft_update",
-            },
-        ),
-        Commitment(
-            workspace_id=workspace_id,
-            title="Custom webhooks v2",
-            customer_name="Fintech Plus",
-            owner_name="Sara Connor",
-            owner_email="sara@acme.corp",
-            promised_by="Oct 12, 2026",
-            promised_date=date(2026, 10, 12),
-            status="awaiting-review",
-            status_label="Awaiting review",
-            is_confirmed=False,
-            category="awaiting-review",
-            has_conflict=False,
-            quote="Our engineering team can add custom payload signature webhooks before mid-October.",
-            original_promise_json={
-                "quote": "Our engineering team can add custom payload signature webhooks before mid-October.",
-                "sourceTitle": "Weekly Sync - Product",
-                "timestamp": "Yesterday · 16:00",
-                "transcriptId": "rec-meet-9104",
-            },
-            engineering_evidence_json={},
-            risk_json={"hasConflict": False},
-            recommended_step_json={
-                "text": "Review and confirm this candidate commitment.",
-                "actionType": "review",
-            },
-        ),
-        Commitment(
-            workspace_id=workspace_id,
-            title="Automated PDF Reports",
-            customer_name="Global Logistics",
-            owner_name="Maya Chen",
-            owner_email="maya@acme.corp",
-            promised_by="Aug 30, 2026",
-            promised_date=date(2026, 8, 30),
-            status="delivered",
-            status_label="Delivered",
-            is_confirmed=True,
-            category="delivered",
-            ticket_id="ENG-870",
-            ticket_status="Done",
-            has_conflict=False,
-            quote="We will have the PDF report generation in staging and live for your team by August 30.",
-            original_promise_json={
-                "quote": "We will have the PDF report generation in staging and live for your team by August 30.",
-                "sourceTitle": "Quarterly Business Review",
-                "timestamp": "Aug 10 · 11:30",
-                "transcriptId": "rec-meet-7041",
-            },
-            engineering_evidence_json={
-                "ticketId": "ENG-870",
-                "ticketTitle": "PDF report generation pipeline",
-                "status": "Done",
-                "targetDelivery": "Aug 29, 2026",
-                "syncedAt": "Aug 29, 2026",
-                "provider": "jira",
-            },
-            risk_json={"hasConflict": False},
-            recommended_step_json={
-                "text": "Commitment verified and delivered.",
-                "actionType": "draft_update",
-            },
-        ),
-    ]
-        db.add_all(seeds)
-        await db.commit()
-        # Mark workspace as seeded permanently in Redis so future GETs skip the DB check
-        if r and seeded_key:
-            await r.set(seeded_key, "1")
-    finally:
-        # Always release the lock, even if commit fails
-        if r and lock_key:
-            try:
-                await r.delete(lock_key)
-            except Exception:
-                pass  # lock auto-expires after 10s
-
-
 @router.get("", response_model=PaginatedCommitmentsResponse)
 async def list_commitments(
     status_filter: Optional[str] = Query(None, alias="status"),
@@ -318,16 +118,10 @@ async def list_commitments(
         description="Items per page. Maximum 100. Defaults to 100 for backwards compatibility.",
     ),
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
-    """Retrieve commitments for the user's workspace with evidence and risk metrics.
-
-    Fix #6: Enforces mandatory pagination (LIMIT + OFFSET) so no request can
-    load the entire workspace table into memory. Returns PaginatedCommitmentsResponse
-    with total count and has_next flag for frontend cursor advancement.
-    """
+    """Retrieve commitments for the user's workspace with evidence and risk metrics. Pure idempotent read."""
     ws_id = await get_active_workspace_id(db, user)
-    await _seed_default_commitments_if_empty(db, ws_id)
 
     # Build base filtered query (no pagination yet — used for COUNT)
     base_query = select(Commitment).where(Commitment.workspace_id == ws_id)
@@ -370,7 +164,7 @@ async def list_commitments(
 async def create_commitment(
     payload: CommitmentCreateRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Create a new tracked commitment."""
     ws_id = await get_active_workspace_id(db, user)
@@ -447,7 +241,7 @@ async def get_commitment(
     commitment_id: uuid.UUID,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Retrieve an individual commitment by UUID with workspace tenancy authorization."""
     c = await db.get(Commitment, commitment_id)
@@ -472,7 +266,7 @@ async def update_commitment(
     request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Update title, status, or date of a commitment with optimistic concurrency control.
 
@@ -561,7 +355,7 @@ async def update_commitment(
 async def confirm_commitment(
     commitment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Confirm a candidate commitment from the review queue into active tracking.
 
@@ -609,7 +403,7 @@ async def generate_draft_update(
     commitment_id: uuid.UUID,
     payload: Optional[DraftUpdateRequest] = None,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Generate an AI-crafted transparent customer status email / message update.
 
@@ -696,7 +490,7 @@ async def generate_draft_update(
 async def delete_commitment(
     commitment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Delete a commitment.
 

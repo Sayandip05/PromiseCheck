@@ -11,7 +11,7 @@ from core.database import get_db
 from core.logging import get_logger
 from core.security import get_current_user
 from modules.identity.models import User
-from modules.mcp.tools import (
+from api.transports.mcp.tools import (
     MCP_TOOLS_MANIFEST,
     create_commitment_tool,
     create_update_draft_tool,

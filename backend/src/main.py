@@ -34,8 +34,8 @@ from api.system.router import router as operations_router
 from modules.integrations.router import router as integrations_router
 from modules.risk.router import router as risk_router
 from modules.workspaces.router import router as workspaces_router
-from modules.mcp.server import mcp_router
-from modules.realtime.router import router as realtime_router
+from api.transports.mcp.server import mcp_router
+from api.transports.realtime.router import router as realtime_router
 
 logger = get_logger("promisecheck.app")
 

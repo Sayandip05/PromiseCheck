@@ -8,8 +8,8 @@
 Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first unchecked step.
 
 **Phase A: Safety net**
-- [x] Step 0: Branch, baselines, contract snapshots (2026-10-10)
-- [ ] Step 1: import-linter in ratchet mode
+- [x] Step 0: Branch, baselines, contract snapshots (2026-10-10, ea3efc5)
+- [x] Step 1: import-linter in ratchet mode (2026-10-10)
 
 **Phase B: Structural moves (zero logic change)**
 - [ ] Step 2: Remove shim files

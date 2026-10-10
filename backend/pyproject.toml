@@ -37,6 +37,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "import-linter>=2.15",
 ]
 
 [tool.setuptools.packages.find]
@@ -53,3 +54,46 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.importlinter]
+root_packages = [
+    "core",
+    "connectors",
+    "ai",
+    "jobs",
+    "modules",
+]
+
+[[tool.importlinter.contracts]]
+name = "Layered Architecture"
+type = "layers"
+layers = [
+    "modules",
+    "jobs",
+    "connectors | ai",
+    "core",
+]
+ignore_imports = [
+    # remove in step 7:
+    "core.security -> modules.identity.models",
+    "core.security -> modules.workspaces.models",
+    # remove in step 8:
+    "core.metrics -> modules.operations.router",
+    "connectors.google_auth -> modules.operations.models",
+    # remove in step 10:
+    "jobs.tasks -> modules.commitments.models",
+    "jobs.tasks -> modules.commitments.service",
+    "jobs.tasks -> modules.ingestion.models",
+    "jobs.tasks -> modules.outbox.models",
+    "jobs.tasks -> modules.identity.models",
+    "jobs.outbox_dispatcher -> modules.outbox.models",
+]
+
+[[tool.importlinter.contracts]]
+name = "No cycles between modules"
+type = "acyclic_siblings"
+ancestors = ["modules"]
+ignore_imports = [
+    # remove in step 6:
+    "modules.identity.service -> modules.workspaces.models",
+]

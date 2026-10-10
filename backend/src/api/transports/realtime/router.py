@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.logging import get_logger
 from core.redis import publish_event, set_with_ttl, get_value, subscribe_channel
-from core.security import decode_token, get_current_user
+from core.security import decode_token
+from modules.iam.dependencies import get_current_user
 from modules.iam.models import User
 from modules.iam.service import get_active_workspace_id
 

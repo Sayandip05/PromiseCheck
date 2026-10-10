@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.security import get_current_user
+from modules.iam.dependencies import get_current_user
 from modules.commitments.schemas import (
     CommitmentCreateRequest,
     CommitmentDTO,

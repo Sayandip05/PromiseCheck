@@ -76,8 +76,6 @@ layers = [
     "core",
 ]
 ignore_imports = [
-    # remove in step 7:
-    "core.security -> modules.iam.models",
     # remove in step 8:
     "core.metrics -> api.system.router",
     "connectors.google_auth -> modules.integrations.models",

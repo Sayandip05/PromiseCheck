@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.security import get_current_user
+from modules.iam.dependencies import get_current_user
 from modules.iam.models import User
 from modules.notifications.service import NotificationService
 from modules.iam.service import get_active_workspace_id

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.logging import get_logger
-from core.security import get_current_user
+from modules.iam.dependencies import get_current_user
 from modules.iam.models import User
 from api.transports.mcp.tools import (
     MCP_TOOLS_MANIFEST,

@@ -10,8 +10,8 @@ from core.database import get_db
 from core.security import (
     bearer_scheme,
     blacklist_access_token,
-    get_current_user,
 )
+from modules.iam.dependencies import get_current_user
 from modules.iam.models import User
 from modules.iam.schemas import (
     GoogleAuthRequest,

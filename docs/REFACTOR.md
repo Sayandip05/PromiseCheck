@@ -8,7 +8,7 @@
 Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first unchecked step.
 
 **Phase A: Safety net**
-- [ ] Step 0: Branch, baselines, contract snapshots
+- [x] Step 0: Branch, baselines, contract snapshots (2026-10-10)
 - [ ] Step 1: import-linter in ratchet mode
 
 **Phase B: Structural moves (zero logic change)**
@@ -240,5 +240,5 @@ Next step: ...
 
 ## 9. Findings Log (agent appends here)
 
-- Baseline recorded at Step 0: `<pytest result>`, `<alembic heads>`
-- (unrelated bugs, surprises, audit contradictions, open questions)
+- Baseline recorded at Step 0: `62 passed, 4 warnings in 13.18s`, alembic heads: `0003 (head)`
+- Alembic notice: `alembic check` against local SQLite fallback reports type/index dialect differences between Postgres UUID/DateTime and SQLite TEXT; production heads are pinned at `0003 (head)`. Contract freeze is guarded by `snapshot_contracts.py`.

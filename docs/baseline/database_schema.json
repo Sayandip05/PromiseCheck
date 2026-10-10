@@ -1,0 +1,934 @@
+{
+  "audit_events": {
+    "columns": [
+      {
+        "name": "action",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "actor_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "description",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "ip_address",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(45)"
+      },
+      {
+        "name": "payload",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "target_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "target_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "commitments": {
+    "columns": [
+      {
+        "name": "category",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "conflict_days",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "customer_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "customer_name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "due_date",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "engineering_evidence_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "has_conflict",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "is_confirmed",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "original_promise_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "owner_email",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "owner_name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "promised_by",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "promised_date",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATE"
+      },
+      {
+        "name": "quote",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "recommended_step_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "risk_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "status_label",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "ticket_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "ticket_status",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "title",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "customers": {
+    "columns": [
+      {
+        "name": "active_promises",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "domains_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "due_date",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "health_score",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "owner",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "recent_promise",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "status_color",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "delivery_evidences": {
+    "columns": [
+      {
+        "name": "commitment_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "commitment_title",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "customer_name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "evidence_title",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "evidence_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "evidence_url",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(500)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "notes",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "verified_by",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "identities": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "email",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "provider",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "provider_subject",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "user_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "ingestion_jobs": {
+    "columns": [
+      {
+        "name": "candidates_extracted",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "candidates_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "customer_name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "job_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "meeting_title",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "source_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "transcript_preview",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "invitations": {
+    "columns": [
+      {
+        "name": "accepted_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "email",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "expires_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "role",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(7)"
+      },
+      {
+        "name": "token_hash",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "memberships": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "role",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(7)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "user_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "outbox_events": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "dispatched_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "event_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "payload",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "refresh_tokens": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "expires_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "family_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "replaced_by_jti",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "revoked_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "token_hash",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "token_jti",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "user_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "sessions": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "expires_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "revoked_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "token_hash",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "user_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "users": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "email",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "full_name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "is_active",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "password_hash",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      }
+    ]
+  },
+  "workspace_integrations": {
+    "columns": [
+      {
+        "name": "channel_or_scope",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "config_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "connected",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "description",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "last_sync",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "provider",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "status_text",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "workspaces": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "settings",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "slug",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      }
+    ]
+  }
+}

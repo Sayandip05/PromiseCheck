@@ -1,0 +1,36 @@
+{
+  "beat_schedule": {
+    "nightly-expired-token-cleanup": {
+      "schedule": "86400.0",
+      "task": "jobs.tasks.cleanup_expired_tokens"
+    },
+    "periodic-commitment-risk-scan": {
+      "schedule": "3600.0",
+      "task": "jobs.tasks.scan_commitment_deadlines"
+    }
+  },
+  "task_routes": {
+    "jobs.tasks.cleanup_expired_tokens": {
+      "queue": "default"
+    },
+    "jobs.tasks.dispatch_notification_alert": {
+      "queue": "high_priority"
+    },
+    "jobs.tasks.process_audio_ingestion": {
+      "queue": "ingestion"
+    },
+    "jobs.tasks.process_transcript_ingestion": {
+      "queue": "ingestion"
+    },
+    "jobs.tasks.scan_commitment_deadlines": {
+      "queue": "high_priority"
+    }
+  },
+  "tasks": [
+    "jobs.tasks.cleanup_expired_tokens",
+    "jobs.tasks.dispatch_notification_alert",
+    "jobs.tasks.process_audio_ingestion",
+    "jobs.tasks.process_transcript_ingestion",
+    "jobs.tasks.scan_commitment_deadlines"
+  ]
+}

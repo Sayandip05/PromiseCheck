@@ -59,41 +59,16 @@ def _extract_and_persist_commitments(
         default_customer=customer_name,
     )
 
-    created_count = 0
-    with Session(_sync_engine) as session:
-        for item in candidates:
-            _raw_date = item.get("promised_date_iso", "")
-            _promised_date: date | None = None
-            if _raw_date:
-                try:
-                    _promised_date = date.fromisoformat(_raw_date[:10])
-                except ValueError:
-                    _promised_date = None
+    from modules.commitments.service import CommitmentService
 
-            c = Commitment(
-                workspace_id=uuid.UUID(workspace_id),
-                title=item.get("title", "New commitment candidate"),
-                customer_name=item.get("customer", customer_name),
-                quote=item.get("quote", ""),
-                promised_by=item.get("promised_by", "Upcoming"),
-                promised_date=_promised_date,
-                status="awaiting-review",
-                status_label="Awaiting review",
-                category="awaiting-review",
-                is_confirmed=False,
-                has_conflict=False,
-                conflict_days=0,
-                original_promise_json={
-                    "quote": item.get("quote", ""),
-                    "sourceTitle": meeting_title,
-                    "timestamp": "Just now (Extracted)",
-                    "context": item.get("context", ""),
-                },
-                risk_json={"level": "low", "reason": "New candidate awaiting verification", "conflictDays": 0},
-                engineering_evidence_json={"prs": [], "tickets": [], "releaseNotes": []},
-            )
-            session.add(c)
-            created_count += 1
+    with Session(_sync_engine) as session:
+        created_count = CommitmentService.create_candidate_commitments_batch_sync(
+            session=session,
+            workspace_id=workspace_id,
+            candidates=candidates,
+            meeting_title=meeting_title,
+            customer_name=customer_name,
+        )
 
         db_job = session.execute(
             sa_select(IngestionJob).where(IngestionJob.job_id == job_id)
@@ -306,6 +281,7 @@ def scan_commitment_deadlines(self) -> dict[str, Any]:
 
     updated_overdue = 0
     updated_at_risk = 0
+    pending_alerts: list[tuple[str, str, dict[str, Any]]] = []
 
     with SyncSession(_sync_engine) as session:
         # Fetch all non-terminal commitments that have a date set
@@ -340,7 +316,6 @@ def scan_commitment_deadlines(self) -> dict[str, Any]:
                     c.category = "needs-attention"
                     updated_overdue += 1
 
-                    # Atomically trigger notification intent in transactional outbox
                     outbox_ev = OutboxEvent(
                         workspace_id=c.workspace_id,
                         event_type="notification.deadline.overdue",
@@ -355,6 +330,19 @@ def scan_commitment_deadlines(self) -> dict[str, Any]:
                         status="pending",
                     )
                     session.add(outbox_ev)
+
+                    pending_alerts.append((
+                        f"ws:{c.workspace_id}:events",
+                        "NOTIFICATION_DEADLINE_OVERDUE",
+                        {
+                            "commitment_id": str(c.id),
+                            "title": c.title,
+                            "customer": c.customer_name,
+                            "due_date": deadline.isoformat(),
+                            "owner_email": c.owner_email,
+                            "workspace_id": str(c.workspace_id),
+                        },
+                    ))
 
             elif deadline < at_risk_cutoff:
                 if c.status not in ("overdue", "at-risk"):
@@ -378,8 +366,28 @@ def scan_commitment_deadlines(self) -> dict[str, Any]:
                     )
                     session.add(outbox_ev)
 
+                    pending_alerts.append((
+                        f"ws:{c.workspace_id}:events",
+                        "NOTIFICATION_DEADLINE_AT_RISK",
+                        {
+                            "commitment_id": str(c.id),
+                            "title": c.title,
+                            "customer": c.customer_name,
+                            "due_date": deadline.isoformat(),
+                            "owner_email": c.owner_email,
+                            "workspace_id": str(c.workspace_id),
+                        },
+                    ))
+
         if updated_overdue + updated_at_risk > 0:
             session.commit()
+
+    # Celery worker publishes alerts directly to Redis (never writes back to Outbox for notifications)
+    for channel, event_type, alert_payload in pending_alerts:
+        try:
+            publish_event_sync(channel, event_type, alert_payload)
+        except Exception as alert_err:
+            logger.warning(f"[Celery Worker] Failed to publish deadline alert to Redis: {alert_err}")
 
     result = {
         "status": "completed",
@@ -471,3 +479,15 @@ def cleanup_expired_tokens(self) -> dict[str, int]:
         f"{total_tokens} refresh tokens, {total_sessions} sessions deleted"
     )
     return {"refresh_tokens_deleted": total_tokens, "sessions_deleted": total_sessions}
+
+
+@celery_app.task(bind=True, queue="high_priority", max_retries=3)
+def dispatch_notification_alert(
+    self,
+    channel: str,
+    event_type: str,
+    payload: dict[str, Any],
+) -> None:
+    """Async worker task to deliver deadline alerts to Redis and external notification sinks."""
+    logger.info(f"[Celery Worker] Delivering notification alert '{event_type}' to channel '{channel}'")
+    publish_event_sync(channel, event_type, payload)

@@ -97,6 +97,7 @@ async def run_dispatcher() -> None:
                         continue
 
                     dispatched_ids = []
+                    failed_ids = []
                     for row in rows:
                         try:
                             _dispatch_to_celery(celery_app, row)
@@ -106,16 +107,31 @@ async def run_dispatcher() -> None:
                                 f"Failed to dispatch outbox event {row.id} "
                                 f"(type={row.event_type}): {dispatch_err}"
                             )
-                            # Leave this row pending — it will be retried next cycle
+                            # Increment attempts in payload; dead-letter after 5 failures
+                            p = dict(row.payload or {})
+                            attempts = p.get("dispatch_attempts", 0) + 1
+                            p["dispatch_attempts"] = attempts
+                            p["last_dispatch_error"] = str(dispatch_err)
+                            row.payload = p
+                            if attempts >= 5:
+                                failed_ids.append(row.id)
 
+                    now = datetime.now(timezone.utc)
                     if dispatched_ids:
-                        now = datetime.now(timezone.utc)
                         await db.execute(
                             update(OutboxEvent)
                             .where(OutboxEvent.id.in_(dispatched_ids))
                             .values(status="dispatched", dispatched_at=now)
                         )
                         logger.info(f"Dispatcher: dispatched {len(dispatched_ids)} outbox events")
+
+                    if failed_ids:
+                        await db.execute(
+                            update(OutboxEvent)
+                            .where(OutboxEvent.id.in_(failed_ids))
+                            .values(status="failed")
+                        )
+                        logger.warning(f"Dispatcher: marked {len(failed_ids)} corrupted outbox events as failed")
 
             await asyncio.sleep(_BUSY_SLEEP if rows else _IDLE_SLEEP)
 
@@ -130,11 +146,16 @@ async def run_dispatcher() -> None:
 def _dispatch_to_celery(celery_app: Any, row: Any) -> None:
     """Route an outbox event to the correct Celery task.
 
-    Add new event_type mappings here as new worker tasks are introduced.
-    Unknown event types are logged as warnings and left pending so they
-    are not silently dropped.
+    Courier responsibility:
+    - Never executes business logic or synchronous network calls in poller loop.
+    - Routes to Celery via .apply_async() with target queues.
     """
-    from jobs.tasks import process_transcript_ingestion, scan_commitment_deadlines
+    from jobs.tasks import (
+        dispatch_notification_alert,
+        process_audio_ingestion,
+        process_transcript_ingestion,
+        scan_commitment_deadlines,
+    )
 
     event_type: str = row.event_type
     payload: dict = row.payload or {}
@@ -151,16 +172,28 @@ def _dispatch_to_celery(celery_app: Any, row: Any) -> None:
             queue="ingestion",
         )
 
+    elif event_type == "ingestion.audio.process":
+        process_audio_ingestion.apply_async(
+            kwargs={
+                "job_id": payload["job_id"],
+                "workspace_id": payload["workspace_id"],
+                "file_path": payload["file_path"],
+                "customer_name": payload.get("customer_name", "Customer"),
+                "meeting_title": payload.get("meeting_title", "Meeting"),
+            },
+            queue="ingestion",
+        )
+
     elif event_type == "risk.scan.request":
         scan_commitment_deadlines.apply_async(queue="high_priority")
 
     elif event_type in ("notification.deadline.overdue", "notification.deadline.at_risk"):
-        from core.redis import publish_event_sync
         ws_id = payload.get("workspace_id", "")
-        publish_event_sync(
-            f"ws:{ws_id}:events" if ws_id else "global:events",
-            event_type.upper().replace(".", "_"),
-            payload,
+        channel = f"ws:{ws_id}:events" if ws_id else "global:events"
+        ev_name = event_type.upper().replace(".", "_")
+        dispatch_notification_alert.apply_async(
+            kwargs={"channel": channel, "event_type": ev_name, "payload": payload},
+            queue="high_priority",
         )
         logger.info(f"Dispatched deadline notification for commitment {payload.get('commitment_id')}")
 

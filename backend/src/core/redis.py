@@ -134,7 +134,8 @@ async def publish_event(channel: str, event_type: str, data: dict[str, Any]) -> 
             "payload": json.dumps(data, default=str),
         }
         await client.xadd(stream_key, stream_fields, maxlen=1000, approximate=True)
-        logger.info(f"Published event '{event_type}' to channel '{channel}' ({receivers} subscribers, stream appended)")
+        await client.expire(stream_key, 86400)  # 24-hour TTL prevents memory leaks
+        logger.info(f"Published event '{event_type}' to channel '{channel}' ({receivers} subscribers, stream appended with 24h TTL)")
     except Exception as exc:
         logger.warning(f"Redis publish_event failed for channel '{channel}': {exc}")
     return receivers
@@ -156,7 +157,8 @@ def publish_event_sync(channel: str, event_type: str, data: dict[str, Any]) -> i
             "payload": json.dumps(data, default=str),
         }
         client.xadd(stream_key, stream_fields, maxlen=1000, approximate=True)
-        logger.info(f"[Celery Worker] Published event '{event_type}' to channel '{channel}' ({receivers} subscribers, stream appended)")
+        client.expire(stream_key, 86400)  # 24-hour TTL prevents memory leaks
+        logger.info(f"[Celery Worker] Published event '{event_type}' to channel '{channel}' ({receivers} subscribers, stream appended with 24h TTL)")
     except Exception as exc:
         logger.warning(f"Redis sync publish_event failed for channel '{channel}': {exc}")
     return receivers

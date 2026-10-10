@@ -48,10 +48,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     run as a pre-deploy step in CI/CD.  create_all is intentionally removed to
     prevent silent schema drift on live databases.
     """
+    import asyncio
+    import os
+
     setup_logging()
     logger.info(f"Starting PromiseCheck v{__version__} in '{settings.APP_ENV}' mode")
+
+    dispatcher_task = None
+    if not os.getenv("PYTEST_CURRENT_TEST"):
+        try:
+            from jobs.outbox_dispatcher import run_dispatcher
+            dispatcher_task = asyncio.create_task(run_dispatcher())
+            logger.info("Supervised Outbox Dispatcher loop started")
+        except Exception as disp_err:
+            logger.warning(f"Failed to start supervised outbox dispatcher: {disp_err}")
+
     yield
+
     logger.info("Initiating graceful shutdown...")
+    if dispatcher_task and not dispatcher_task.done():
+        dispatcher_task.cancel()
+        try:
+            await dispatcher_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Outbox Dispatcher loop stopped.")
+
     await async_engine.dispose()
     logger.info("Database connection pool disposed. Shutdown complete.")
 

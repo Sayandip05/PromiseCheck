@@ -8,10 +8,9 @@ tenant and prevents cross-tenant data access.
 import uuid
 from typing import Any, Optional
 
-from sqlalchemy import select
-
 from core.database import AsyncSessionLocal
-from modules.commitments.models import Commitment
+from modules.commitments.schemas import CommitmentCreateRequest
+from modules.commitments.service import CommitmentService
 
 
 async def _resolve_workspace(workspace_id: Optional[str]) -> uuid.UUID:
@@ -34,15 +33,14 @@ async def list_commitments_tool(
     ws_uuid = await _resolve_workspace(workspace_id)
 
     async with AsyncSessionLocal() as db:
-        query = select(Commitment).where(Commitment.workspace_id == ws_uuid)
-        if status:
-            query = query.where(Commitment.status == status)
-        if customer:
-            query = query.where(Commitment.customer_name.ilike(f"%{customer}%"))
-        query = query.limit(min(limit, 100))  # hard cap at 100
-
-        result = await db.execute(query)
-        items = result.scalars().all()
+        items, _ = await CommitmentService.list_commitments(
+            db=db,
+            workspace_id=ws_uuid,
+            status=status,
+            search=customer,
+            limit=min(limit, 100),
+            offset=0,
+        )
         return [
             {
                 "id": str(c.id),
@@ -82,13 +80,9 @@ async def get_commitment_evidence_tool(
     ws_uuid = await _resolve_workspace(workspace_id)
 
     async with AsyncSessionLocal() as db:
-        c = await db.get(Commitment, c_uuid)
+        c = await CommitmentService.get_commitment(db, ws_uuid, c_uuid)
         if not c:
             return {"error": f"Commitment '{commitment_id}' not found"}
-
-        # Tenant isolation — reject cross-workspace evidence access
-        if c.workspace_id != ws_uuid:
-            return {"error": "Access denied: commitment does not belong to your workspace"}
 
         return {
             "id": str(c.id),
@@ -119,31 +113,20 @@ async def create_commitment_tool(
     ws_uuid = await _resolve_workspace(workspace_id)
 
     async with AsyncSessionLocal() as db:
-        commitment = Commitment(
-            workspace_id=ws_uuid,
+        payload = CommitmentCreateRequest(
             title=title,
-            customer_name=customer,
+            customer=customer,
+            quote=quote,
+            promised_by=promised_by,
             owner_name="AI Agent",
             owner_email="agent@promisecheck.io",
-            promised_by=promised_by,
-            status="awaiting-review",
-            status_label="Awaiting review",
-            is_confirmed=False,
-            category="awaiting-review",
-            has_conflict=False,
-            conflict_days=0,
-            quote=quote,
-            original_promise_json={
-                "quote": quote,
-                "sourceTitle": "MCP Agent Ingestion",
-                "timestamp": "Just now",
-            },
-            engineering_evidence_json={},
-            risk_json={"hasConflict": False},
         )
-        db.add(commitment)
-        await db.commit()
-        await db.refresh(commitment)
+        commitment = await CommitmentService.create_commitment(
+            db=db,
+            workspace_id=ws_uuid,
+            user=None,
+            payload=payload,
+        )
         return {
             "status": "created",
             "id": str(commitment.id),
@@ -170,12 +153,9 @@ async def create_update_draft_tool(
     ws_uuid = await _resolve_workspace(workspace_id)
 
     async with AsyncSessionLocal() as db:
-        c = await db.get(Commitment, c_uuid)
+        c = await CommitmentService.get_commitment(db, ws_uuid, c_uuid)
         if not c:
             return {"error": f"Commitment '{commitment_id}' not found"}
-
-        if c.workspace_id != ws_uuid:
-            return {"error": "Access denied: commitment does not belong to your workspace"}
 
         body = (
             proposed_message

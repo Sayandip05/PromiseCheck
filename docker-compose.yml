@@ -65,7 +65,7 @@ services:
         condition: service_healthy
 
   # ============================================================================
-  # Celery Background Worker
+  # Celery Background Worker (Execution Engine)
   # ============================================================================
   worker:
     build:
@@ -74,7 +74,55 @@ services:
       target: backend
     container_name: promisecheck_worker
     restart: unless-stopped
-    command: ["celery", "-A", "entrypoints.worker", "worker", "--loglevel=info"]
+    command: ["celery", "-A", "jobs.celery_app.celery_app", "worker", "--loglevel=info", "-Q", "high_priority,default,ingestion", "-c", "4"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/promisecheck
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - ./requirements.txt:/app/requirements.txt
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Celery Beat Periodic Scheduler (Cron Triggers)
+  # ============================================================================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: promisecheck_scheduler
+    restart: unless-stopped
+    command: ["celery", "-A", "jobs.celery_app.celery_app", "beat", "--loglevel=info"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/promisecheck
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - ./requirements.txt:/app/requirements.txt
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Transactional Outbox Dispatcher (Durable Event Courier)
+  # ============================================================================
+  dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: promisecheck_dispatcher
+    restart: unless-stopped
+    command: ["python", "-m", "jobs.outbox_dispatcher"]
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/promisecheck

@@ -122,22 +122,14 @@ async def call_mcp_tool(
     # Full OAuth scope strings would require token claims — this guards at the
     # role level: viewer cannot call mutation tools.
     _WRITE_TOOLS = {"create_commitment", "create_update_draft"}
-    from modules.workspaces.service import get_active_workspace_id
-    from modules.workspaces.models import Membership
+    from modules.workspaces.service import WorkspaceService, get_active_workspace_id
     from core.security import Role
-    from sqlalchemy import select
 
     ws_id = await get_active_workspace_id(db, current_user)
 
     if tool_name in _WRITE_TOOLS:
         # Mutation tools require at least Member role (not Viewer)
-        mem_result = await db.execute(
-            select(Membership).where(
-                Membership.workspace_id == ws_id,
-                Membership.user_id == current_user.id,
-            )
-        )
-        membership = mem_result.scalar_one_or_none()
+        membership = await WorkspaceService.get_user_membership(db, ws_id, current_user.id)
         if not membership or membership.role == Role.VIEWER:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

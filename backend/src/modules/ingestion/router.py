@@ -12,10 +12,13 @@ from sqlalchemy import desc, select
 from core.database import get_db
 from core.redis import publish_event, set_with_ttl
 from core.security import get_current_user
+from jobs.celery_app import celery_app
 from jobs.tasks import process_audio_ingestion, process_transcript_ingestion
 from modules.identity.models import User
 from modules.audit.service import record_audit_event
 from modules.ingestion.models import IngestionJob
+from modules.ingestion.service import IngestionService
+from modules.outbox.service import create_outbox_event
 from modules.workspaces.service import get_active_workspace_id
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion & Capture"])
@@ -86,66 +89,16 @@ async def upload_transcript(
             detail="transcript_text must not be empty.",
         )
 
-    job_id = f"job-up-{uuid.uuid4().hex[:8]}"
-
-    # Persist IngestionJob entity immediately as 'queued'
-    db_job = IngestionJob(
-        workspace_id=ws_id,
-        job_id=job_id,
-        customer_name=payload.customer,
-        meeting_title=payload.meeting_title,
-        source_type=payload.source_type,
-        status="queued",
-        candidates_extracted=0,
-        transcript_preview=text_to_process[:300],
-        candidates_json=[],
-    )
-    db.add(db_job)
-
-    # Record immutable audit event
-    await record_audit_event(
+    res = await IngestionService.queue_transcript_ingestion(
         db=db,
         workspace_id=ws_id,
-        actor_id=user.id,
-        action="TRANSCRIPT_QUEUED",
-        target_type="ingestion_job",
-        target_id=job_id,
-        description=f"Queued transcript ingestion for {payload.meeting_title} ({payload.customer}).",
-        payload={"source_type": payload.source_type},
-    )
-    await db.commit()
-
-    # Cache queued status in Redis (24h TTL)
-    await set_with_ttl(f"job:{job_id}", {"status": "queued", "job_id": job_id}, ttl_seconds=86400)
-
-    # Dispatch Celery task — worker handles LLM + DB + SSE asynchronously
-    process_transcript_ingestion.delay(
-        job_id=job_id,
-        workspace_id=str(ws_id),
-        transcript_text=text_to_process,
-        customer_name=payload.customer,
+        user_id=user.id,
+        customer=payload.customer,
         meeting_title=payload.meeting_title,
-    )
-
-    # Notify SSE subscribers that processing has started
-    await publish_event(
-        f"ws:{ws_id}:events",
-        "INGESTION_QUEUED",
-        {
-            "job_id": job_id,
-            "customer": payload.customer,
-            "meeting_title": payload.meeting_title,
-            "message": "Extraction in progress. You will be notified when complete.",
-        },
-    )
-
-    return IngestJobResponse(
-        job_id=job_id,
+        transcript_text=text_to_process,
         source_type=payload.source_type,
-        status="queued",
-        candidates_extracted=0,
-        candidates=[],
     )
+    return IngestJobResponse(**res)
 
 
 @router.post("/upload-audio", response_model=IngestJobResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -196,59 +149,15 @@ async def upload_audio_file(
     ws_id = await get_active_workspace_id(db, user)
 
 
-    # Persist IngestionJob entity immediately as 'queued'
-    db_job = IngestionJob(
-        workspace_id=ws_id,
-        job_id=job_id,
-        customer_name=customer,
-        meeting_title=meeting_title,
-        source_type="audio_upload",
-        status="queued",
-        candidates_extracted=0,
-        transcript_preview=f"Audio recording: {file.filename} ({total_bytes // 1024} KB)",
-        candidates_json=[],
-    )
-    db.add(db_job)
-
-    await record_audit_event(
+    res = await IngestionService.queue_audio_ingestion(
         db=db,
         workspace_id=ws_id,
-        actor_id=user.id,
-        action="AUDIO_UPLOAD_QUEUED",
-        target_type="ingestion_job",
-        target_id=job_id,
-        description=f"Queued audio upload for {meeting_title} ({customer}).",
-        payload={"filename": file.filename, "file_size_bytes": total_bytes},
-    )
-    await db.commit()
-
-    await set_with_ttl(f"job:{job_id}", {"status": "queued", "job_id": job_id}, ttl_seconds=86400)
-
-    # Dispatch Celery background task
-    process_audio_ingestion.delay(
-        job_id=job_id,
-        workspace_id=str(ws_id),
-        file_path=str(dest_path),
-        customer_name=customer,
+        user_id=user.id,
+        file_path=dest_path,
+        filename=file.filename,
+        file_size_bytes=total_bytes,
+        customer=customer,
         meeting_title=meeting_title,
     )
-
-    await publish_event(
-        f"ws:{ws_id}:events",
-        "INGESTION_QUEUED",
-        {
-            "job_id": job_id,
-            "customer": customer,
-            "meeting_title": meeting_title,
-            "message": "Audio transcription in progress. You will be notified when complete.",
-        },
-    )
-
-    return IngestJobResponse(
-        job_id=job_id,
-        source_type="audio_upload",
-        status="queued",
-        candidates_extracted=0,
-        candidates=[],
-    )
+    return IngestJobResponse(**res)
 

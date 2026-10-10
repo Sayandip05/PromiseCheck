@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.database import get_db
 from core.logging import get_logger
 from core.redis import delete_key, get_value, publish_event, set_with_ttl
@@ -599,7 +600,8 @@ async def get_google_authorize_url(
     """Generate Google OAuth 2.0 authorization URL for Gmail and Calendar access."""
     ws_id = await get_active_workspace_id(db, user)
     # Default redirect points to backend callback which closes popup / redirects to app
-    callback_uri = redirect_uri or "http://localhost:8001/api/v1/integrations/google/callback"
+    default_callback = f"{settings.API_BASE_URL.rstrip('/')}/api/v1/integrations/google/callback"
+    callback_uri = redirect_uri or default_callback
     state = f"{ws_id}:{uuid.uuid4().hex[:12]}"
 
     auth_url = build_authorization_url(redirect_uri=callback_uri, state=state)
@@ -652,7 +654,7 @@ async def google_oauth_callback_get(
             status_code=400,
         )
 
-    callback_uri = "http://localhost:8001/api/v1/integrations/google/callback"
+    callback_uri = f"{settings.API_BASE_URL.rstrip('/')}/api/v1/integrations/google/callback"
     try:
         token_data = await exchange_code_for_tokens(code, callback_uri)
     except Exception as exc:
@@ -737,7 +739,7 @@ async def google_oauth_callback_get(
                     window.opener.postMessage({{ type: 'GOOGLE_AUTH_SUCCESS', provider: 'gmail', email: '{email}' }}, '*');
                     setTimeout(function() {{ window.close(); }}, 1200);
                 }} else {{
-                    setTimeout(function() {{ window.location.href = 'http://localhost:3000/'; }}, 1200);
+                    setTimeout(function() {{ window.location.href = '{settings.PUBLIC_APP_URL.rstrip('/')}/'; }}, 1200);
                 }}
             </script>
         </body>

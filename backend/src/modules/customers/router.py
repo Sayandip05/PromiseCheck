@@ -3,18 +3,15 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.security import get_current_user
-from modules.commitments.models import Commitment
-from modules.customers.models import Customer
+from modules.customers.service import CustomerService
 from modules.identity.models import User
 from modules.workspaces.service import get_active_workspace_id
-from sqlalchemy import func
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -59,22 +56,12 @@ async def list_customers(
 ):
     """List customer accounts for the active workspace with live commitment health scores and pagination."""
     ws_id = await get_active_workspace_id(db, user)
-
-    # Count total customers for the active workspace
-    count_res = await db.execute(
-        select(func.count(Customer.id)).where(Customer.workspace_id == ws_id)
+    dto_list, total = await CustomerService.list_customers_with_metrics(
+        db=db,
+        workspace_id=ws_id,
+        page=page,
+        page_size=page_size,
     )
-    total = count_res.scalar_one()
-
-    # Bounded query using LIMIT + OFFSET
-    res = await db.execute(
-        select(Customer)
-        .where(Customer.workspace_id == ws_id)
-        .order_by(Customer.created_at.desc())
-        .limit(page_size)
-        .offset((page - 1) * page_size)
-    )
-    customers = res.scalars().all()
 
     if response:
         response.headers["X-Total-Count"] = str(total)
@@ -82,61 +69,7 @@ async def list_customers(
         response.headers["X-Page-Size"] = str(page_size)
         response.headers["X-Has-Next"] = "true" if (page * page_size) < total else "false"
 
-    # Query commitments to calculate dynamic promise counts & health
-    comm_res = await db.execute(select(Commitment).where(Commitment.workspace_id == ws_id))
-    commitments = comm_res.scalars().all()
-
-    dto_list: list[CustomerDTO] = []
-    for c in customers:
-        c_name_clean = c.name.lower().strip()
-        matching = [
-            comm
-            for comm in commitments
-            if comm.customer_name.lower().strip() in c_name_clean
-            or c_name_clean in comm.customer_name.lower().strip()
-        ]
-
-        if matching:
-            active_count = sum(1 for comm in matching if comm.status != "delivered")
-            at_risk_count = sum(1 for comm in matching if comm.status == "at-risk")
-            if at_risk_count > 0:
-                c_status = "at-risk"
-                c_color = "#f59e0b"
-                health = max(50, 90 - (at_risk_count * 20))
-            elif active_count > 0:
-                c_status = "on-track"
-                c_color = "#10b981"
-                health = 95
-            else:
-                c_status = "completed"
-                c_color = "#10b981"
-                health = 100
-
-            recent = matching[-1].title
-            due = matching[-1].promised_by or c.due_date
-        else:
-            c_status = c.status
-            c_color = c.status_color
-            active_count = c.active_promises
-            health = c.health_score
-            recent = c.recent_promise
-            due = c.due_date
-
-        dto_list.append(
-            CustomerDTO(
-                id=str(c.id),
-                name=c.name,
-                status=c_status,
-                statusColor=c_color,
-                activePromises=active_count,
-                healthScore=health,
-                recentPromise=recent,
-                dueDate=due,
-                owner=c.owner,
-            )
-        )
-
-    return dto_list
+    return [CustomerDTO(**d) for d in dto_list]
 
 
 @router.post("", response_model=CustomerDTO, status_code=status.HTTP_201_CREATED)
@@ -147,22 +80,14 @@ async def create_customer(
 ):
     """Create a new customer account."""
     ws_id = await get_active_workspace_id(db, user)
-    customer = Customer(
+    customer = await CustomerService.create_customer(
+        db=db,
         workspace_id=ws_id,
         name=payload.name,
-        owner=payload.owner or "Account Manager",
-        recent_promise=payload.recent_promise or "Initial onboarding",
-        due_date=payload.due_date or "Upcoming",
-        status="on-track",
-        status_color="#10b981",
-        active_promises=1,
-        health_score=100,
-        domains_json=[],
+        owner=payload.owner,
+        recent_promise=payload.recent_promise,
+        due_date=payload.due_date,
     )
-    db.add(customer)
-    await db.commit()
-    await db.refresh(customer)
-
     return CustomerDTO(
         id=str(customer.id),
         name=customer.name,
@@ -184,19 +109,7 @@ async def get_customer(
 ):
     """Retrieve an individual customer account profile with workspace authorization."""
     ws_id = await get_active_workspace_id(db, user)
-    customer = await db.get(Customer, customer_id)
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found",
-        )
-    # Tenant authorization check: prevent IDOR access across workspaces
-    if customer.workspace_id != ws_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view this customer account.",
-        )
-
+    customer = await CustomerService.get_customer_by_id(db, customer_id, ws_id)
     return CustomerDTO(
         id=str(customer.id),
         name=customer.name,
@@ -208,5 +121,3 @@ async def get_customer(
         dueDate=customer.due_date,
         owner=customer.owner,
     )
-
-

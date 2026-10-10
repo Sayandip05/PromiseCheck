@@ -45,6 +45,7 @@ celery_app.conf.update(
         "jobs.tasks.scan_commitment_deadlines": {"queue": "high_priority"},
         "jobs.tasks.dispatch_notification_alert": {"queue": "high_priority"},
         "jobs.tasks.process_transcript_ingestion": {"queue": "ingestion"},
+        "jobs.tasks.process_audio_ingestion": {"queue": "ingestion"},
         "jobs.tasks.cleanup_expired_tokens": {"queue": "default"},
     },
     # Redis TTL Configuration for task results

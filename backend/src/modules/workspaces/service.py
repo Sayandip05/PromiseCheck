@@ -50,6 +50,21 @@ class WorkspaceService:
         return await db.get(Workspace, workspace_id)
 
     @staticmethod
+    async def get_user_membership(
+        db: AsyncSession,
+        workspace_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> Optional[Membership]:
+        """Retrieve a user's membership in a workspace."""
+        res = await db.execute(
+            select(Membership).where(
+                Membership.workspace_id == workspace_id,
+                Membership.user_id == user_id,
+            )
+        )
+        return res.scalar_one_or_none()
+
+    @staticmethod
     async def list_members(db: AsyncSession, workspace_id: uuid.UUID) -> list[Membership]:
         """List all member accounts in a workspace."""
         res = await db.execute(select(Membership).where(Membership.workspace_id == workspace_id))

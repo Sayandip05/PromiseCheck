@@ -18,10 +18,11 @@ from modules.identity.models import User
 from modules.workspaces.service import get_active_workspace_id
 
 logger = get_logger("realtime_gateway")
-router = APIRouter(prefix="/events", tags=["Real-time Events (SSE & Pub/Sub)"])
+router = APIRouter(tags=["Real-time Events (SSE & Pub/Sub)"])
 
 
-@router.get("/stream")
+@router.get("/events/stream")
+@router.get("/realtime/stream")
 async def sse_event_stream(
     request: Request,
     token: Optional[str] = Query(None, description="JWT token for browser EventSource"),
@@ -133,7 +134,8 @@ async def sse_event_stream(
     )
 
 
-@router.post("/test-publish")
+@router.post("/events/test-publish")
+@router.post("/realtime/test-publish")
 async def test_publish_event(
     event_type: str = "TEST_EVENT",
     message: str = "Test real-time message",

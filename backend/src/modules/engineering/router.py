@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.security import get_current_user
 from modules.engineering.service import EngineeringService
-from modules.identity.models import User
-from modules.workspaces.service import get_active_workspace_id
+from modules.iam.models import User
+from modules.iam.service import get_active_workspace_id
 
 router = APIRouter(prefix="/engineering", tags=["Engineering Trackers"])
 

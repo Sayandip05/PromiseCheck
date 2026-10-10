@@ -257,7 +257,7 @@ async def get_current_user(
     opening multiple connections per request.
     Checks the JTI blocklist in Redis so revoked tokens are rejected.
     """
-    from modules.identity.models import User
+    from modules.iam.models import User
 
     payload = decode_token(token, expected_type="access")
     user_id_str = payload.get("sub")
@@ -326,7 +326,7 @@ async def get_current_user_optional(
         if not user_id_str:
             return None
         user_uuid = uuid.UUID(user_id_str)
-        from modules.identity.models import User
+        from modules.iam.models import User
 
         user = await db.get(User, user_uuid)
         if user and user.is_active:
@@ -352,7 +352,7 @@ def require_role(min_role: Role):
         user: Any = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> Any:
-        from modules.workspaces.models import Membership
+        from modules.iam.models import Membership
 
         stmt = select(Membership).where(Membership.user_id == user.id)
         res = await db.execute(stmt)

@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.security import get_current_user
-from modules.identity.models import User
+from modules.iam.models import User
 from modules.notifications.service import NotificationService
-from modules.workspaces.service import get_active_workspace_id
+from modules.iam.service import get_active_workspace_id
 
 router = APIRouter(prefix="/notifications", tags=["Notifications & Alerts"])
 

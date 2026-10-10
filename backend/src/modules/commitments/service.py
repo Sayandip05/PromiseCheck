@@ -25,7 +25,7 @@ from modules.commitments.schemas import (
     RecommendedStepSchema,
     RiskAnalysisSchema,
 )
-from modules.identity.models import User
+from modules.iam.models import User
 from core.outbox.service import create_outbox_event
 
 logger = get_logger("commitment_service")

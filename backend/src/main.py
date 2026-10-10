@@ -9,8 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 __version__ = "0.1.0"
 from core.config import settings
 from core.database import async_engine, check_database_health
-import modules.identity.models  # noqa: F401
-import modules.workspaces.models  # noqa: F401
+import modules.iam.models  # noqa: F401
 import modules.commitments.models  # noqa: F401
 import modules.customers.models  # noqa: F401
 import modules.ingestion.models  # noqa: F401
@@ -27,13 +26,13 @@ from modules.commitments.router import router as commitments_router
 from modules.customers.router import router as customers_router
 from modules.delivery.router import router as delivery_router
 from modules.engineering.router import router as engineering_router
-from modules.identity.router import router as identity_router
+from modules.iam.router import auth_router as identity_router
 from modules.ingestion.router import router as ingestion_router
 from modules.notifications.router import router as notifications_router
 from api.system.router import router as operations_router
 from modules.integrations.router import router as integrations_router
 from modules.risk.router import router as risk_router
-from modules.workspaces.router import router as workspaces_router
+from modules.iam.router import workspaces_router
 from api.transports.mcp.server import mcp_router
 from api.transports.realtime.router import router as realtime_router
 

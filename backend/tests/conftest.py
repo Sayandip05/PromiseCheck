@@ -18,8 +18,7 @@ def auth_headers() -> dict[str, str]:
     import uuid
     from sqlalchemy.orm import Session
     from jobs.tasks import _sync_engine
-    from modules.identity.models import User
-    from modules.workspaces.models import Workspace, WorkspaceMember, Role
+    from modules.iam.models import User, Workspace, WorkspaceMember, Role
     from core.security import create_access_token
 
     with Session(_sync_engine) as session:

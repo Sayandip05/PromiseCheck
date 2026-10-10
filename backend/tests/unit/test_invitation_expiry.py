@@ -5,8 +5,8 @@ import uuid
 import pytest
 
 from core.database import AsyncSessionLocal
-from modules.workspaces.models import Invitation, Workspace
-from modules.workspaces.service import WorkspaceService
+from modules.iam.models import Invitation, Workspace
+from modules.iam.service import WorkspaceService
 
 
 @pytest.mark.asyncio

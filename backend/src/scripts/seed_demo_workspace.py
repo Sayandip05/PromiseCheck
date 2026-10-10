@@ -21,8 +21,7 @@ from core.database import AsyncSessionLocal
 from modules.customers.models import Customer
 from modules.commitments.models import Commitment
 from modules.audit.models import AuditEvent
-from modules.workspaces.models import Workspace, WorkspaceMember, Role
-from modules.identity.models import User
+from modules.iam.models import Workspace, WorkspaceMember, Role, User
 from core.security import hash_password
 
 

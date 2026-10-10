@@ -1,5 +1,4 @@
-"""Production-grade JWT identity and authentication routes."""
-
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
@@ -13,19 +12,24 @@ from core.security import (
     blacklist_access_token,
     get_current_user,
 )
-from modules.identity.models import User
-from modules.identity.schemas import (
+from modules.iam.models import User
+from modules.iam.schemas import (
     GoogleAuthRequest,
+    MembershipResponse,
     RefreshTokenRequest,
     TokenResponse,
     UserLoginRequest,
     UserMeResponse,
     UserRegisterRequest,
     UserResponse,
+    WorkspaceCreateRequest,
+    WorkspaceResponse,
 )
-from modules.identity.service import AuthService
+from modules.iam.service import AuthService, WorkspaceService
 
-router = APIRouter(prefix="/auth", tags=["Identity & Auth"])
+auth_router = APIRouter(prefix="/auth", tags=["Identity & Auth"])
+router = auth_router
+workspaces_router = APIRouter(prefix="/workspaces", tags=["Workspaces & Tenancy"])
 
 
 def _set_token_cookies(response: Response, access_token: str, refresh_token: str, expires_in: int):
@@ -253,3 +257,31 @@ async def get_current_user_profile(
         active_workspace=active_ws,
         workspaces=all_ws,
     )
+
+
+@workspaces_router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+async def create_workspace(payload: WorkspaceCreateRequest, db: AsyncSession = Depends(get_db)):
+    """Create a new tenant workspace."""
+    try:
+        # For Phase 1 scaffold, provision root workspace
+        system_user_id = uuid.uuid4()
+        workspace = await WorkspaceService.create_workspace(db, system_user_id, payload)
+        return workspace
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+
+
+@workspaces_router.get("/{workspace_id}", response_model=WorkspaceResponse)
+async def get_workspace(workspace_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Retrieve workspace details."""
+    workspace = await WorkspaceService.get_workspace(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found.")
+    return workspace
+
+
+@workspaces_router.get("/{workspace_id}/members", response_model=list[MembershipResponse])
+async def list_workspace_members(workspace_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """List members and their roles within a workspace."""
+    return await WorkspaceService.list_members(db, workspace_id)
+

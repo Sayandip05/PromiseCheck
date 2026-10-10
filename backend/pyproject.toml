@@ -77,8 +77,7 @@ layers = [
 ]
 ignore_imports = [
     # remove in step 7:
-    "core.security -> modules.identity.models",
-    "core.security -> modules.workspaces.models",
+    "core.security -> modules.iam.models",
     # remove in step 8:
     "core.metrics -> api.system.router",
     "connectors.google_auth -> modules.integrations.models",
@@ -86,14 +85,11 @@ ignore_imports = [
     "jobs.tasks -> modules.commitments.models",
     "jobs.tasks -> modules.commitments.service",
     "jobs.tasks -> modules.ingestion.models",
-    "jobs.tasks -> modules.identity.models",
+    "jobs.tasks -> modules.iam.models",
 ]
 
 [[tool.importlinter.contracts]]
 name = "No cycles between modules"
 type = "acyclic_siblings"
 ancestors = ["modules"]
-ignore_imports = [
-    # remove in step 6:
-    "modules.identity.service -> modules.workspaces.models",
-]
+

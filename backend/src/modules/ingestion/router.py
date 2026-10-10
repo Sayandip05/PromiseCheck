@@ -14,12 +14,12 @@ from core.redis import publish_event, set_with_ttl
 from core.security import get_current_user
 from jobs.celery_app import celery_app
 from jobs.tasks import process_audio_ingestion, process_transcript_ingestion
-from modules.identity.models import User
+from modules.iam.models import User
 from modules.audit.service import record_audit_event
 from modules.ingestion.models import IngestionJob
 from modules.ingestion.service import IngestionService
 from core.outbox.service import create_outbox_event
-from modules.workspaces.service import get_active_workspace_id
+from modules.iam.service import get_active_workspace_id
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion & Capture"])
 

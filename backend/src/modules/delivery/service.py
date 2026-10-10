@@ -12,7 +12,7 @@ from core.redis import publish_event
 from modules.audit.service import record_audit_event
 from modules.commitments.service import CommitmentService
 from modules.delivery.models import DeliveryEvidence
-from modules.identity.models import User
+from modules.iam.models import User
 
 
 class DeliveryService:

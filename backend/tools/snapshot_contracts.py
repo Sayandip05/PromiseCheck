@@ -47,8 +47,7 @@ def collect_database_schema() -> dict:
     from core.database import Base
     # Ensure all models are imported
     try:
-        import modules.identity.models  # noqa
-        import modules.workspaces.models  # noqa
+        import modules.iam.models  # noqa
         import modules.commitments.models  # noqa
         import modules.customers.models  # noqa
         import modules.ingestion.models  # noqa

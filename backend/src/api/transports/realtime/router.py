@@ -14,8 +14,8 @@ from core.database import get_db
 from core.logging import get_logger
 from core.redis import publish_event, set_with_ttl, get_value, subscribe_channel
 from core.security import decode_token, get_current_user
-from modules.identity.models import User
-from modules.workspaces.service import get_active_workspace_id
+from modules.iam.models import User
+from modules.iam.service import get_active_workspace_id
 
 logger = get_logger("realtime_gateway")
 router = APIRouter(tags=["Real-time Events (SSE & Pub/Sub)"])

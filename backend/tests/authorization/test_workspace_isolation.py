@@ -8,8 +8,7 @@ from core.database import AsyncSessionLocal
 from core.security import create_access_token, Role
 from modules.commitments.models import Commitment
 from modules.customers.models import Customer
-from modules.identity.models import User
-from modules.workspaces.models import Membership, Workspace
+from modules.iam.models import Membership, User, Workspace
 from src.main import app
 
 

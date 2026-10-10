@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from core.database import AsyncSessionLocal
 from modules.commitments.models import Commitment
 from modules.customers.models import Customer
-from modules.workspaces.models import Workspace
+from modules.iam.models import Workspace
 from src.main import app
 
 

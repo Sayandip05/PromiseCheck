@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.logging import get_logger
 from core.security import get_current_user
-from modules.identity.models import User
+from modules.iam.models import User
 from api.transports.mcp.tools import (
     MCP_TOOLS_MANIFEST,
     create_commitment_tool,
@@ -122,7 +122,7 @@ async def call_mcp_tool(
     # Full OAuth scope strings would require token claims — this guards at the
     # role level: viewer cannot call mutation tools.
     _WRITE_TOOLS = {"create_commitment", "create_update_draft"}
-    from modules.workspaces.service import WorkspaceService, get_active_workspace_id
+    from modules.iam.service import WorkspaceService, get_active_workspace_id
     from core.security import Role
 
     ws_id = await get_active_workspace_id(db, current_user)

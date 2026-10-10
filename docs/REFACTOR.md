@@ -16,7 +16,7 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 - [x] Step 3: `modules/outbox` -> `core/outbox` (2026-10-10, 86f49f0)
 - [x] Step 4: Split `modules/operations` -> `modules/integrations` + `api/system` (2026-10-10)
 - [x] Step 5: `modules/realtime` + `modules/mcp` -> `api/transports/` (2026-10-10)
-- [ ] Step 6: `identity` + `workspaces` -> `modules/iam`
+- [x] Step 6: `identity` + `workspaces` -> `modules/iam` (2026-10-10)
 
 **Phase C: Fix boundary violations**
 - [ ] Step 7: Move auth dependencies out of `core/security.py` into `iam`

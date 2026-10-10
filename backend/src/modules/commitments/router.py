@@ -17,8 +17,8 @@ from modules.commitments.schemas import (
     PaginatedCommitmentsResponse,
 )
 from modules.commitments.service import CommitmentService, to_dto
-from modules.identity.models import User
-from modules.workspaces.service import get_active_workspace_id
+from modules.iam.models import User
+from modules.iam.service import get_active_workspace_id
 
 router = APIRouter(prefix="/commitments", tags=["Commitments"])
 

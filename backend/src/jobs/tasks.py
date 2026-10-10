@@ -427,8 +427,8 @@ def cleanup_expired_tokens(self) -> dict[str, int]:
     from sqlalchemy import delete, select as sa_select
     from sqlalchemy.orm import Session as SyncSession
 
-    from modules.identity.models import RefreshToken
-    from modules.identity.models import Session as UserSession
+    from modules.iam.models import RefreshToken
+    from modules.iam.models import Session as UserSession
 
     logger.info("[Celery Worker] Starting nightly expired token cleanup")
     cutoff = datetime.now(timezone.utc) - timedelta(days=1)

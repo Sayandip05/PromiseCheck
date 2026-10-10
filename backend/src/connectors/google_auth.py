@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
-from modules.operations.models import WorkspaceIntegration
+from modules.integrations.models import WorkspaceIntegration
 
 logger = get_logger("connectors.google_auth")
 

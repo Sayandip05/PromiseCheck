@@ -62,12 +62,14 @@ root_packages = [
     "ai",
     "jobs",
     "modules",
+    "api",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Layered Architecture"
 type = "layers"
 layers = [
+    "api",
     "modules",
     "jobs",
     "connectors | ai",
@@ -78,8 +80,8 @@ ignore_imports = [
     "core.security -> modules.identity.models",
     "core.security -> modules.workspaces.models",
     # remove in step 8:
-    "core.metrics -> modules.operations.router",
-    "connectors.google_auth -> modules.operations.models",
+    "core.metrics -> api.system.router",
+    "connectors.google_auth -> modules.integrations.models",
     # remove in step 10:
     "jobs.tasks -> modules.commitments.models",
     "jobs.tasks -> modules.commitments.service",

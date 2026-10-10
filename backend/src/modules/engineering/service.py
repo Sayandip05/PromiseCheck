@@ -10,7 +10,7 @@ from connectors.connector_interface import ConnectorDeliveryError, ConnectorNotC
 from connectors.jira import JiraConnector
 from connectors.linear import LinearConnector
 from modules.commitments.service import CommitmentService
-from modules.operations.service import IntegrationService
+from modules.integrations.service import IntegrationService
 
 
 class EngineeringService:

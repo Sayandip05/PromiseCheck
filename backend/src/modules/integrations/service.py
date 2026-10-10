@@ -6,7 +6,7 @@ from typing import Any, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.operations.models import WorkspaceIntegration
+from modules.integrations.models import WorkspaceIntegration
 
 
 class IntegrationService:

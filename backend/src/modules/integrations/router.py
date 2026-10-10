@@ -18,7 +18,7 @@ from core.logging import get_logger
 from core.redis import delete_key, get_value, publish_event, set_with_ttl
 from core.security import get_current_user
 from modules.identity.models import User
-from modules.operations.models import WorkspaceIntegration
+from modules.integrations.models import WorkspaceIntegration
 from modules.workspaces.service import get_active_workspace_id
 
 from connectors.connector_interface import (

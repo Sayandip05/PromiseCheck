@@ -17,7 +17,7 @@ import modules.ingestion.models  # noqa: F401
 import modules.delivery.models  # noqa: F401
 import modules.audit.models  # noqa: F401
 import core.outbox.models  # noqa: F401
-import modules.operations.models  # noqa: F401
+import modules.integrations.models  # noqa: F401
 from core.logging import get_logger, setup_logging
 from jobs.celery_app import check_redis_health
 
@@ -30,8 +30,8 @@ from modules.engineering.router import router as engineering_router
 from modules.identity.router import router as identity_router
 from modules.ingestion.router import router as ingestion_router
 from modules.notifications.router import router as notifications_router
-from modules.operations.router import router as operations_router
-from modules.operations.integrations_router import router as integrations_router
+from api.system.router import router as operations_router
+from modules.integrations.router import router as integrations_router
 from modules.risk.router import router as risk_router
 from modules.workspaces.router import router as workspaces_router
 from modules.mcp.server import mcp_router

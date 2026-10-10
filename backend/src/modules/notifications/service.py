@@ -10,7 +10,7 @@ from connectors.connector_interface import ConnectorDeliveryError, ConnectorNotC
 from connectors.email import EmailConnector
 from connectors.slack import SlackConnector
 from modules.commitments.service import CommitmentService
-from modules.operations.service import IntegrationService
+from modules.integrations.service import IntegrationService
 
 
 class NotificationService:

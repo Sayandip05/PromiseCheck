@@ -158,7 +158,7 @@ class MetricsCollector:
             pass
 
         try:
-            from modules.operations.router import _query_celery_stats
+            from api.system.router import _query_celery_stats
 
             celery_stats = _query_celery_stats()
         except Exception:

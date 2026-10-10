@@ -14,7 +14,7 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 **Phase B: Structural moves (zero logic change)**
 - [x] Step 2: Remove shim files (2026-10-10, de4dfcc)
 - [x] Step 3: `modules/outbox` -> `core/outbox` (2026-10-10, 86f49f0)
-- [ ] Step 4: Split `modules/operations` -> `modules/integrations` + `api/system`
+- [x] Step 4: Split `modules/operations` -> `modules/integrations` + `api/system` (2026-10-10)
 - [ ] Step 5: `modules/realtime` + `modules/mcp` -> `api/transports/`
 - [ ] Step 6: `identity` + `workspaces` -> `modules/iam`
 

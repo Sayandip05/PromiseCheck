@@ -1,18 +1,13 @@
 """Google OAuth 2.0 and Token Management Utility for Gmail & Google Calendar."""
 
 import os
-import time
 import urllib.parse
-import uuid
 from typing import Any, Optional
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
-from modules.integrations.models import WorkspaceIntegration
 
 logger = get_logger("connectors.google_auth")
 
@@ -110,59 +105,3 @@ async def refresh_google_access_token(refresh_token: str) -> dict[str, Any]:
             return res.json()
         logger.error(f"[Google OAuth] Refresh token exchange failed: {res.status_code} - {res.text}")
         raise ValueError(f"Failed to refresh Google access token: {res.text}")
-
-
-async def get_valid_google_token_for_workspace(
-    db: AsyncSession,
-    workspace_id: uuid.UUID,
-) -> tuple[Optional[str], Optional[str]]:
-    """Retrieve a valid Google access token for a workspace, refreshing automatically if expired.
-
-    Returns:
-        (access_token, authorized_email) or (None, None)
-    """
-    stmt = select(WorkspaceIntegration).where(
-        WorkspaceIntegration.workspace_id == workspace_id,
-        WorkspaceIntegration.provider.in_(["gmail", "google_calendar"]),
-        WorkspaceIntegration.connected == True,  # noqa: E712
-    )
-    res = await db.execute(stmt)
-    integration = res.scalars().first()
-
-    if not integration or not integration.config_json:
-        # Fallback to server env var if present
-        env_token = os.getenv("GOOGLE_ACCESS_TOKEN") or os.getenv("GMAIL_ACCESS_TOKEN")
-        if env_token:
-            return env_token, os.getenv("GOOGLE_AUTHORIZED_EMAIL", "system@promisecheck.com")
-        return None, None
-
-    config = integration.get_decrypted_config()
-    access_token = config.get("access_token")
-    refresh_token = config.get("refresh_token")
-    expires_at = config.get("token_expiry", 0)
-    email = config.get("email") or integration.channel_or_scope or "connected-account@google.com"
-
-    now = time.time()
-    # If token still valid with at least 60 seconds buffer
-    if access_token and expires_at > (now + 60):
-        return access_token, email
-
-    # Attempt automatic refresh if refresh_token available
-    if refresh_token:
-        try:
-            logger.info(f"[Google OAuth] Refreshing expired access token for workspace={workspace_id}")
-            token_data = await refresh_google_access_token(refresh_token)
-            new_access_token = token_data.get("access_token")
-            expires_in = token_data.get("expires_in", 3600)
-
-            if new_access_token:
-                config["access_token"] = new_access_token
-                config["token_expiry"] = now + expires_in
-                integration.set_encrypted_config(config)
-                await db.commit()
-                await db.refresh(integration)
-                return new_access_token, email
-        except Exception as exc:
-            logger.error(f"[Google OAuth] Automatic token refresh failed for workspace={workspace_id}: {exc}")
-
-    return access_token, email

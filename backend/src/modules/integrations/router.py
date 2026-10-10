@@ -40,8 +40,8 @@ from connectors.google_auth import (
     build_authorization_url,
     exchange_code_for_tokens,
     get_google_user_profile,
-    get_valid_google_token_for_workspace,
 )
+from modules.integrations.service import get_valid_google_token_for_workspace
 
 logger = get_logger("integrations_router")
 

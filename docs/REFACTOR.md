@@ -20,7 +20,7 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 
 **Phase C: Fix boundary violations**
 - [x] Step 7: Move auth dependencies out of `core/security.py` into `iam` (2026-10-10)
-- [ ] Step 8: Fix `core/metrics.py` and `connectors/google_auth.py` upward imports
+- [x] Step 8: Fix `core/metrics.py` and `connectors/google_auth.py` upward imports (2026-10-10)
 - [ ] Step 9: Consolidate `delivery`, `risk`, `engineering` into `commitments`
 - [ ] Step 10: Module-owned Celery tasks (task names preserved)
 - [ ] Step 11: Public interface per module + cross-module import cleanup

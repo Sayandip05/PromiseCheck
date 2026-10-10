@@ -60,7 +60,7 @@ class NotificationService:
                 return {"status": "dispatched", "channel": "slack", "result": res}
 
             elif channel.lower() in ("email", "gmail"):
-                from connectors.google_auth import get_valid_google_token_for_workspace
+                from modules.integrations.service import get_valid_google_token_for_workspace
                 from connectors.gmail import GmailConnector
 
                 access_token, sender_email = await get_valid_google_token_for_workspace(db, workspace_id)

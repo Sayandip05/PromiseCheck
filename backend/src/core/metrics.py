@@ -157,12 +157,11 @@ class MetricsCollector:
         except Exception:
             pass
 
-        try:
-            from api.system.router import _query_celery_stats
-
-            celery_stats = _query_celery_stats()
-        except Exception:
-            pass
+        if _celery_stats_provider is not None:
+            try:
+                celery_stats = _celery_stats_provider()
+            except Exception:
+                pass
 
         lines.append("")
         lines.append("# HELP celery_queue_depth Pending tasks waiting in Celery background queues.")
@@ -181,3 +180,11 @@ class MetricsCollector:
 
 # Singleton metrics registry instance
 metrics = MetricsCollector()
+
+_celery_stats_provider: Any = None
+
+
+def register_celery_stats_provider(provider_fn: Any) -> None:
+    """Register provider callback returning Celery queue and worker statistics."""
+    global _celery_stats_provider
+    _celery_stats_provider = provider_fn

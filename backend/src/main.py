@@ -131,7 +131,10 @@ async def readiness_probe(response: Response) -> dict:
 
 
 from fastapi.responses import PlainTextResponse
-from core.metrics import metrics
+from core.metrics import metrics, register_celery_stats_provider
+from jobs.celery_stats import query_celery_stats
+
+register_celery_stats_provider(query_celery_stats)
 
 
 @app.get("/metrics", response_class=PlainTextResponse, tags=["Telemetry"])

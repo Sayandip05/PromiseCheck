@@ -4,7 +4,7 @@ import uuid
 from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.outbox.models import OutboxEvent
+from core.outbox.models import OutboxEvent
 
 
 async def create_outbox_event(

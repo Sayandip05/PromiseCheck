@@ -26,7 +26,7 @@ from modules.commitments.schemas import (
     RiskAnalysisSchema,
 )
 from modules.identity.models import User
-from modules.outbox.service import create_outbox_event
+from core.outbox.service import create_outbox_event
 
 logger = get_logger("commitment_service")
 

@@ -13,7 +13,7 @@ from jobs.celery_app import celery_app
 from jobs.tasks import process_audio_ingestion, process_transcript_ingestion
 from modules.audit.service import record_audit_event
 from modules.ingestion.models import IngestionJob
-from modules.outbox.service import create_outbox_event
+from core.outbox.service import create_outbox_event
 
 logger = get_logger("ingestion_service")
 

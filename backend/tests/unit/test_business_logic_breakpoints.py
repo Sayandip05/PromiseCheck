@@ -10,7 +10,7 @@ from core.security import create_access_token, Role
 from modules.commitments.models import Commitment
 from modules.identity.models import User
 from modules.workspaces.models import Membership, Workspace
-from modules.outbox.models import OutboxEvent
+from core.outbox.models import OutboxEvent
 from jobs.tasks import scan_commitment_deadlines
 
 

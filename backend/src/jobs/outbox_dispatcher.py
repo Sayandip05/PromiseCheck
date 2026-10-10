@@ -48,7 +48,7 @@ async def run_dispatcher() -> None:
     # Import the outbox model — it may not exist yet if migration hasn't run;
     # the dispatcher handles ImportError gracefully below.
     try:
-        from modules.outbox.models import OutboxEvent  # type: ignore[import]
+        from core.outbox.models import OutboxEvent  # type: ignore[import]
         _has_outbox = True
     except ImportError:
         _has_outbox = False
@@ -64,7 +64,7 @@ async def run_dispatcher() -> None:
             # Model not yet created — keep looping, re-check import periodically
             await asyncio.sleep(30.0)
             try:
-                from modules.outbox.models import OutboxEvent  # type: ignore[import]  # noqa: F811
+                from core.outbox.models import OutboxEvent  # type: ignore[import]  # noqa: F811
                 _has_outbox = True
                 logger.info("OutboxEvent model now available — dispatcher activating")
             except ImportError:

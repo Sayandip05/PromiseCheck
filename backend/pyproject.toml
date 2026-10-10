@@ -84,9 +84,7 @@ ignore_imports = [
     "jobs.tasks -> modules.commitments.models",
     "jobs.tasks -> modules.commitments.service",
     "jobs.tasks -> modules.ingestion.models",
-    "jobs.tasks -> modules.outbox.models",
     "jobs.tasks -> modules.identity.models",
-    "jobs.outbox_dispatcher -> modules.outbox.models",
 ]
 
 [[tool.importlinter.contracts]]

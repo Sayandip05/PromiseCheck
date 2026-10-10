@@ -22,7 +22,7 @@ import modules.ingestion.models  # noqa: F401
 import modules.delivery.models  # noqa: F401
 import modules.audit.models  # noqa: F401
 import modules.operations.models  # noqa: F401
-import modules.outbox.models  # noqa: F401
+import core.outbox.models  # noqa: F401
 
 config = context.config
 

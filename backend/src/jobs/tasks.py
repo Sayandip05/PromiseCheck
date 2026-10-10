@@ -259,7 +259,7 @@ def scan_commitment_deadlines(self) -> dict[str, Any]:
     from sqlalchemy import select, update
     from sqlalchemy.orm import Session as SyncSession
 
-    from modules.outbox.models import OutboxEvent
+    from core.outbox.models import OutboxEvent
 
     # Distributed scheduler lock: prevent duplicate execution when multiple worker containers run Celery Beat
     try:

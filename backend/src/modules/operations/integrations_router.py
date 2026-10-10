@@ -15,10 +15,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.logging import get_logger
 from core.redis import delete_key, get_value, publish_event, set_with_ttl
-from core.security import get_current_user_optional
+from core.security import get_current_user
 from modules.identity.models import User
 from modules.operations.models import WorkspaceIntegration
 from modules.workspaces.service import get_active_workspace_id
+
+from connectors.base import (
+    ConnectorAuthenticationError,
+    ConnectorDeliveryError,
+    ConnectorError,
+    ConnectorNotConfiguredError,
+)
 
 from connectors.jira import JiraConnector
 from connectors.linear import LinearConnector
@@ -275,7 +282,7 @@ async def _get_or_seed_integrations(db: AsyncSession, ws_id: uuid.UUID) -> list[
 @router.get("", response_model=list[IntegrationDTO])
 async def list_integrations(
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """List all third-party connectors with Redis caching and DB persistence."""
     ws_id = await get_active_workspace_id(db, user)
@@ -304,7 +311,7 @@ async def connect_integration(
     provider: str,
     payload: ConnectIntegrationRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Connect or update configuration for a third-party tool."""
     ws_id = await get_active_workspace_id(db, user)
@@ -330,10 +337,15 @@ async def connect_integration(
     connector = instantiate_connector(provider, raw_payload)
     sync_details = "Connected and active"
     if connector:
-        await connector.verify_credentials(raw_payload)
-        sync_resource = payload.project_key or payload.team_key or payload.scope or payload.channel or ""
-        sync_result = await connector.initial_sync(str(ws_id), sync_resource)
-        sync_details = f"Connected ({sync_result.get('status', 'active')})"
+        try:
+            await connector.verify_credentials(raw_payload)
+            sync_resource = payload.project_key or payload.team_key or payload.scope or payload.channel or ""
+            sync_result = await connector.initial_sync(str(ws_id), sync_resource)
+            sync_details = f"Connected ({sync_result.get('status', 'active')})"
+        except ConnectorNotConfiguredError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        except ConnectorDeliveryError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
     # Update persistent database entity
     item.connected = True
@@ -361,12 +373,12 @@ async def connect_integration(
     elif payload.scope or payload.webhook_url:
         item.channel_or_scope = payload.scope or payload.webhook_url
 
-    # Persist provider config
-    current_config = dict(item.config_json or {})
+    # Persist provider config with envelope encryption
+    current_config = dict(item.get_decrypted_config())
     for k, v in raw_payload.items():
         if v is not None:
             current_config[k] = v
-    item.config_json = current_config
+    item.set_encrypted_config(current_config)
 
     await db.commit()
     await db.refresh(item)
@@ -391,7 +403,7 @@ async def test_integration(
     provider: str,
     payload: TestIntegrationRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Test external connection and live execution for a third-party tool."""
     ws_id = await get_active_workspace_id(db, user)
@@ -403,7 +415,7 @@ async def test_integration(
     )
     res = await db.execute(stmt)
     item = res.scalar_one_or_none()
-    merged_config = dict(item.config_json or {}) if item else {}
+    merged_config = dict(item.get_decrypted_config()) if item else {}
     for k, v in payload.model_dump(exclude_unset=True).items():
         if v is not None:
             merged_config[k] = v
@@ -412,82 +424,99 @@ async def test_integration(
     if not connector:
         raise HTTPException(status_code=400, detail=f"Unknown provider '{provider}'")
 
-    if provider == "slack":
-        channel = merged_config.get("channel") or merged_config.get("scope") or "#customer-commitments"
-        test_msg = payload.message or "🧪 PromiseCheck test alert: Slack integration connection verified!"
-        delivery_res = await connector.post_message(text=test_msg, channel=channel)
-        is_live = delivery_res.get("provider") == "slack_webhook" or bool(delivery_res.get("ts"))
-        return TestIntegrationResponse(
-            success=True,
-            provider="slack",
-            message=f"Test alert dispatched to {channel} ({'Live Slack API' if is_live else 'Fluent Simulation'})",
-            details=delivery_res,
-        )
+    try:
+        if provider == "slack":
+            channel = merged_config.get("channel") or merged_config.get("scope") or "#customer-commitments"
+            test_msg = payload.message or "🧪 PromiseCheck test alert: Slack integration connection verified!"
+            delivery_res = await connector.post_message(text=test_msg, channel=channel)
+            return TestIntegrationResponse(
+                success=True,
+                provider="slack",
+                message=f"Live Slack alert dispatched to {channel}.",
+                details=delivery_res,
+            )
 
-    elif provider == "jira":
-        is_valid = await connector.verify_credentials(merged_config)
-        ticket_res = await connector.get_ticket("ENG-104")
-        return TestIntegrationResponse(
-            success=is_valid,
-            provider="jira",
-            message="Jira credentials verified successfully!" if is_valid else "Jira verification failed.",
-            details={"configured": connector.is_configured, "ticket_preview": ticket_res},
-        )
+        elif provider == "jira":
+            is_valid = await connector.verify_credentials(merged_config)
+            ticket_res = None
+            if merged_config.get("test_ticket"):
+                ticket_res = await connector.get_ticket(merged_config["test_ticket"])
+            return TestIntegrationResponse(
+                success=is_valid,
+                provider="jira",
+                message="Jira credentials verified successfully!" if is_valid else "Jira verification failed.",
+                details={"configured": connector.is_configured, "ticket_preview": ticket_res},
+            )
 
-    elif provider == "linear":
-        is_valid = await connector.verify_credentials(merged_config)
-        issue_res = await connector.get_issue("ENG-891")
-        return TestIntegrationResponse(
-            success=is_valid,
-            provider="linear",
-            message="Linear GraphQL authentication verified!" if is_valid else "Linear verification failed.",
-            details={"configured": connector.is_configured, "issue_preview": issue_res},
-        )
+        elif provider == "linear":
+            is_valid = await connector.verify_credentials(merged_config)
+            return TestIntegrationResponse(
+                success=is_valid,
+                provider="linear",
+                message="Linear GraphQL authentication verified!" if is_valid else "Linear verification failed.",
+                details={"configured": connector.is_configured},
+            )
 
-    elif provider == "recall":
-        is_valid = await connector.verify_credentials(merged_config)
-        meeting_url = payload.meeting_url or "https://meet.google.com/xyz-abc-def"
-        bot_res = await connector.create_bot(
-            meeting_url=meeting_url,
-            bot_name=merged_config.get("bot_name") or "PromiseCheck Notetaker",
-        )
-        return TestIntegrationResponse(
-            success=is_valid,
-            provider="recall",
-            message="Recall.ai bot client verified & test dispatch completed!",
-            details={"configured": connector.is_configured, "bot": bot_res},
-        )
+        elif provider == "recall":
+            is_valid = await connector.verify_credentials(merged_config)
+            return TestIntegrationResponse(
+                success=is_valid,
+                provider="recall",
+                message="Recall.ai credentials verified successfully!" if is_valid else "Recall.ai verification failed.",
+                details={"configured": connector.is_configured},
+            )
 
-    elif provider == "google_meet":
-        is_valid = await connector.verify_credentials(merged_config)
-        meetings = await connector.list_recent_meetings()
-        return TestIntegrationResponse(
-            success=is_valid,
-            provider="google_meet",
-            message=f"Google Meet connection verified! {len(meetings)} conference records accessible.",
-            details={"configured": connector.is_configured, "recent_meetings": meetings},
-        )
+        elif provider == "google_meet":
+            is_valid = await connector.verify_credentials(merged_config)
+            meetings = await connector.list_recent_meetings()
+            return TestIntegrationResponse(
+                success=is_valid,
+                provider="google_meet",
+                message=f"Google Meet connection verified! {len(meetings)} conference records accessible.",
+                details={"configured": connector.is_configured, "recent_meetings": meetings},
+            )
 
-    elif provider in ("gmail", "google_calendar"):
+        elif provider in ("gmail", "google_calendar"):
+            return TestIntegrationResponse(
+                success=True,
+                provider=provider,
+                message="Google Workspace integration ready.",
+                details={"configured": True},
+            )
+
         return TestIntegrationResponse(
             success=True,
             provider=provider,
-            message="Google Workspace integration ready.",
-            details={"configured": True},
+            message=f"{provider} tested successfully.",
         )
-
-    return TestIntegrationResponse(
-        success=True,
-        provider=provider,
-        message=f"{provider} tested successfully.",
-    )
+    except ConnectorNotConfiguredError as exc:
+        return TestIntegrationResponse(
+            success=False,
+            provider=provider,
+            message=f"Configuration error: {exc}",
+            details={"configured": False, "error": str(exc)},
+        )
+    except ConnectorDeliveryError as exc:
+        return TestIntegrationResponse(
+            success=False,
+            provider=provider,
+            message=f"Connection/Delivery error: {exc}",
+            details={"configured": True, "error": str(exc)},
+        )
+    except Exception as exc:
+        return TestIntegrationResponse(
+            success=False,
+            provider=provider,
+            message=f"Test failed: {exc}",
+            details={"error": str(exc)},
+        )
 
 
 @router.post("/{provider}/disconnect", response_model=IntegrationDTO)
 async def disconnect_integration(
     provider: str,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Disconnect a third-party tool and invalidate cache."""
     ws_id = await get_active_workspace_id(db, user)
@@ -565,7 +594,7 @@ class GmailSendUpdateRequest(BaseModel):
 async def get_google_authorize_url(
     redirect_uri: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Generate Google OAuth 2.0 authorization URL for Gmail and Calendar access."""
     ws_id = await get_active_workspace_id(db, user)
@@ -612,8 +641,16 @@ async def google_oauth_callback_get(
             pass
 
     if not ws_id:
-        # Fallback to active workspace
-        ws_id = await get_active_workspace_id(db, None)
+        return HTMLResponse(
+            content="""
+            <html><body style="font-family:sans-serif;text-align:center;padding:50px;">
+                <h3 style="color:#e11d48;">Invalid OAuth State</h3>
+                <p>Missing or corrupted workspace identifier in state parameter.</p>
+                <script>setTimeout(function() { window.close(); }, 4000);</script>
+            </body></html>
+            """,
+            status_code=400,
+        )
 
     callback_uri = "http://localhost:8001/api/v1/integrations/google/callback"
     try:
@@ -658,13 +695,13 @@ async def google_oauth_callback_get(
         item.status_text = f"Connected as {email}"
         item.last_sync = "Just now"
         item.channel_or_scope = email
-        item.config_json = {
+        item.set_encrypted_config({
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_expiry": time.time() + expires_in,
             "email": email,
             "scopes": scopes,
-        }
+        })
         await db.commit()
         await db.refresh(item)
 
@@ -713,7 +750,7 @@ async def google_oauth_callback_get(
 async def connect_google_with_token(
     payload: GoogleConnectTokenRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Directly register an existing Google Access Token / Service Account token."""
     ws_id = await get_active_workspace_id(db, user)
@@ -741,12 +778,12 @@ async def connect_google_with_token(
     item.status_text = f"Connected as {email}"
     item.last_sync = "Just now"
     item.channel_or_scope = email
-    item.config_json = {
+    item.set_encrypted_config({
         "access_token": payload.access_token,
         "refresh_token": payload.refresh_token,
         "token_expiry": time.time() + (payload.expires_in or 3600),
         "email": email,
-    }
+    })
     await db.commit()
     await db.refresh(item)
 
@@ -763,49 +800,70 @@ async def connect_google_with_token(
 async def sync_commitment_to_google_calendar(
     payload: CalendarSyncEventRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Sync a commitment deadline event directly to the active workspace's Google Calendar."""
     ws_id = await get_active_workspace_id(db, user)
     access_token, email = await get_valid_google_token_for_workspace(db, ws_id)
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google Calendar is not connected. Connect your Google account first.",
+        )
 
-    calendar_conn = GoogleCalendarConnector(access_token=access_token)
-    event_result = await calendar_conn.create_deadline_event(
-        title=payload.title,
-        due_date_iso=payload.due_date_iso,
-        description=payload.description or f"PromiseCheck SLA commitment for '{payload.title}'.",
-    )
+    try:
+        calendar_conn = GoogleCalendarConnector(access_token=access_token)
+        event_result = await calendar_conn.create_deadline_event(
+            title=payload.title,
+            due_date_iso=payload.due_date_iso,
+            description=payload.description or f"PromiseCheck SLA commitment for '{payload.title}'.",
+        )
 
-    logger.info(f"[Google Calendar] Synced event '{payload.title}' for workspace={ws_id} (email={email})")
-    return {
-        "status": "synced",
-        "email": email,
-        "event": event_result,
-        "html_link": event_result.get("htmlLink"),
-    }
+        logger.info(f"[Google Calendar] Synced event '{payload.title}' for workspace={ws_id} (email={email})")
+        return {
+            "status": "synced",
+            "email": email,
+            "event": event_result,
+            "html_link": event_result.get("htmlLink"),
+        }
+    except ConnectorNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except ConnectorDeliveryError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
 
 @router.post("/google/gmail/send-update")
 async def send_customer_update_via_gmail(
     payload: GmailSendUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    user: Optional[User] = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """Dispatch an approved customer commitment update via the connected Gmail account."""
     ws_id = await get_active_workspace_id(db, user)
     access_token, sender_email = await get_valid_google_token_for_workspace(db, ws_id)
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Gmail is not connected. Connect your Google account first.",
+        )
 
-    gmail_conn = GmailConnector(access_token=access_token)
-    send_result = await gmail_conn.send_draft_update(
-        to_email=payload.to_email,
-        subject=payload.subject,
-        body=payload.body,
-    )
+    try:
+        gmail_conn = GmailConnector(access_token=access_token)
+        send_result = await gmail_conn.send_draft_update(
+            to_email=payload.to_email,
+            subject=payload.subject,
+            body=payload.body,
+        )
 
-    logger.info(f"[Gmail] Sent status update to {payload.to_email} via workspace={ws_id} (sender={sender_email})")
-    return {
-        "status": "sent",
-        "sender": sender_email,
-        "result": send_result,
-    }
+        logger.info(f"[Gmail] Sent status update to {payload.to_email} via workspace={ws_id} (sender={sender_email})")
+        return {
+            "status": "sent",
+            "sender": sender_email,
+            "result": send_result,
+        }
+    except ConnectorNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except ConnectorDeliveryError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
 

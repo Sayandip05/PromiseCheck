@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from connectors.base import BaseConnector
+from connectors.connector_interface import BaseConnector
 from connectors.ssrf_guard import validate_no_ssrf
 from core.logging import get_logger
 

@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from connectors.base import BaseConnector, ConnectorDeliveryError, ConnectorNotConfiguredError
+from connectors.connector_interface import BaseConnector, ConnectorDeliveryError, ConnectorNotConfiguredError
 from core.logging import get_logger
 
 logger = get_logger("connector.jira")

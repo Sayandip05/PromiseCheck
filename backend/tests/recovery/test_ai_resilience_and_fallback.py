@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock
 import pytest
 
-from ai.extractor import PromiseExtractor
+from ai.promise_extractor import PromiseExtractor
 
 
 @pytest.mark.asyncio

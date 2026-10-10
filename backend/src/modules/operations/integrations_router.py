@@ -21,7 +21,7 @@ from modules.identity.models import User
 from modules.operations.models import WorkspaceIntegration
 from modules.workspaces.service import get_active_workspace_id
 
-from connectors.base import (
+from connectors.connector_interface import (
     ConnectorAuthenticationError,
     ConnectorDeliveryError,
     ConnectorError,

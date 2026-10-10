@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from connectors.base import ConnectorDeliveryError, ConnectorNotConfiguredError
+from connectors.connector_interface import ConnectorDeliveryError, ConnectorNotConfiguredError
 from connectors.jira import JiraConnector
 from connectors.linear import LinearConnector
 from modules.commitments.service import CommitmentService

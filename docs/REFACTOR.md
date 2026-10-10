@@ -9,10 +9,10 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 
 **Phase A: Safety net**
 - [x] Step 0: Branch, baselines, contract snapshots (2026-10-10, ea3efc5)
-- [x] Step 1: import-linter in ratchet mode (2026-10-10)
+- [x] Step 1: import-linter in ratchet mode (2026-10-10, fc0d529)
 
 **Phase B: Structural moves (zero logic change)**
-- [ ] Step 2: Remove shim files
+- [x] Step 2: Remove shim files (2026-10-10)
 - [ ] Step 3: `modules/outbox` -> `core/outbox`
 - [ ] Step 4: Split `modules/operations` -> `modules/integrations` + `api/system`
 - [ ] Step 5: `modules/realtime` + `modules/mcp` -> `api/transports/`

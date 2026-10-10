@@ -41,7 +41,7 @@ def test_security_headers_and_tracing(client: TestClient):
 @pytest.mark.asyncio
 async def test_all_connectors_fail_fast_when_unconfigured():
     """Verify connectors fail fast with ConnectorNotConfiguredError instead of silent fluent mocks."""
-    from connectors.base import ConnectorNotConfiguredError
+    from connectors.connector_interface import ConnectorNotConfiguredError
 
     # 1. Jira
     jira = JiraConnector()

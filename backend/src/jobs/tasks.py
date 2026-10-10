@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from typing import Any
 
-from ai.extractor import PromiseExtractor
+from ai.promise_extractor import PromiseExtractor
 from core.logging import get_logger
 from core.redis import publish_event_sync, set_with_ttl_sync
 from jobs.celery_app import celery_app

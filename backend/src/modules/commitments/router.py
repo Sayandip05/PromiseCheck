@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from modules.iam.dependencies import get_current_user
 from modules.commitments.schemas import (
     CommitmentCreateRequest,
     CommitmentDTO,
@@ -17,8 +16,7 @@ from modules.commitments.schemas import (
     PaginatedCommitmentsResponse,
 )
 from modules.commitments.service import CommitmentService, to_dto
-from modules.iam.models import User
-from modules.iam.service import get_active_workspace_id
+from modules.iam import User, get_active_workspace_id, get_current_user
 
 router = APIRouter(prefix="/commitments", tags=["Commitments"])
 

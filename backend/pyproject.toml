@@ -82,3 +82,89 @@ name = "No cycles between modules"
 type = "acyclic_siblings"
 ancestors = ["modules"]
 
+[[tool.importlinter.contracts]]
+name = "Encapsulate iam module internals"
+type = "protected"
+protected_modules = [
+    "modules.iam.models",
+    "modules.iam.service",
+    "modules.iam.dependencies",
+    "modules.iam.schemas",
+    "modules.iam.tasks",
+]
+allowed_importers = [
+    "modules.iam",
+]
+
+[[tool.importlinter.contracts]]
+name = "Encapsulate audit module internals"
+type = "protected"
+protected_modules = [
+    "modules.audit.models",
+    "modules.audit.service",
+]
+allowed_importers = [
+    "modules.audit",
+]
+
+[[tool.importlinter.contracts]]
+name = "Encapsulate integrations module internals"
+type = "protected"
+protected_modules = [
+    "modules.integrations.models",
+    "modules.integrations.service",
+]
+allowed_importers = [
+    "modules.integrations",
+]
+
+[[tool.importlinter.contracts]]
+name = "Encapsulate customers module internals"
+type = "protected"
+protected_modules = [
+    "modules.customers.models",
+    "modules.customers.service",
+]
+allowed_importers = [
+    "modules.customers",
+]
+
+[[tool.importlinter.contracts]]
+name = "Encapsulate notifications module internals"
+type = "protected"
+protected_modules = [
+    "modules.notifications.service",
+    "modules.notifications.tasks",
+]
+allowed_importers = [
+    "modules.notifications",
+]
+
+[[tool.importlinter.contracts]]
+name = "Encapsulate ingestion module internals"
+type = "protected"
+protected_modules = [
+    "modules.ingestion.models",
+    "modules.ingestion.service",
+    "modules.ingestion.tasks",
+]
+allowed_importers = [
+    "modules.ingestion",
+]
+
+[[tool.importlinter.contracts]]
+name = "Encapsulate commitments module internals"
+type = "protected"
+protected_modules = [
+    "modules.commitments.models",
+    "modules.commitments.service",
+    "modules.commitments.schemas",
+    "modules.commitments.delivery",
+    "modules.commitments.risk",
+    "modules.commitments.tickets",
+]
+allowed_importers = [
+    "modules.commitments",
+]
+
+

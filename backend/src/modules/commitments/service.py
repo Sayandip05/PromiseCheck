@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as SyncSession
 
 from core.logging import get_logger
 from core.redis import publish_event
-from modules.audit.service import record_audit_event
+from modules.audit import record_audit_event
 from modules.commitments.models import Commitment
 from modules.commitments.schemas import (
     CommitmentCreateRequest,
@@ -25,7 +25,7 @@ from modules.commitments.schemas import (
     RecommendedStepSchema,
     RiskAnalysisSchema,
 )
-from modules.iam.models import User
+from modules.iam import User
 from core.outbox.service import create_outbox_event
 
 logger = get_logger("commitment_service")

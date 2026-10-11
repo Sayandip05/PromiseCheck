@@ -16,10 +16,8 @@ from core.config import settings
 from core.database import get_db
 from core.logging import get_logger
 from core.redis import delete_key, get_value, publish_event, set_with_ttl
-from modules.iam.dependencies import get_current_user
-from modules.iam.models import User
+from modules.iam import User, get_active_workspace_id, get_current_user
 from modules.integrations.models import WorkspaceIntegration
-from modules.iam.service import get_active_workspace_id
 
 from connectors.connector_interface import (
     ConnectorAuthenticationError,

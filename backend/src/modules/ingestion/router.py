@@ -11,14 +11,12 @@ from sqlalchemy import desc, select
 
 from core.database import get_db
 from core.redis import publish_event, set_with_ttl
-from modules.iam.dependencies import get_current_user
-from modules.ingestion.tasks import process_audio_ingestion, process_transcript_ingestion
-from modules.iam.models import User
-from modules.audit.service import record_audit_event
+from modules.audit import record_audit_event
+from modules.iam import User, get_active_workspace_id, get_current_user
 from modules.ingestion.models import IngestionJob
 from modules.ingestion.service import IngestionService
+from modules.ingestion.tasks import process_audio_ingestion, process_transcript_ingestion
 from core.outbox.service import create_outbox_event
-from modules.iam.service import get_active_workspace_id
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion & Capture"])
 

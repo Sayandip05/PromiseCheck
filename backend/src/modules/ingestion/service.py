@@ -11,7 +11,7 @@ from core.logging import get_logger
 from core.redis import publish_event, set_with_ttl
 from jobs.celery_app import celery_app
 from modules.ingestion.tasks import process_audio_ingestion, process_transcript_ingestion
-from modules.audit.service import record_audit_event
+from modules.audit import record_audit_event
 from modules.ingestion.models import IngestionJob
 from core.outbox.service import create_outbox_event
 

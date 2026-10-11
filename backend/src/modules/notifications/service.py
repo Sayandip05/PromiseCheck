@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from connectors.connector_interface import ConnectorDeliveryError, ConnectorNotConfiguredError
 from connectors.email import EmailConnector
 from connectors.slack import SlackConnector
-from modules.commitments.service import CommitmentService
-from modules.integrations.service import IntegrationService
+from modules.commitments import CommitmentService
+from modules.integrations import IntegrationService
 
 
 class NotificationService:
@@ -60,7 +60,7 @@ class NotificationService:
                 return {"status": "dispatched", "channel": "slack", "result": res}
 
             elif channel.lower() in ("email", "gmail"):
-                from modules.integrations.service import get_valid_google_token_for_workspace
+                from modules.integrations import get_valid_google_token_for_workspace
                 from connectors.gmail import GmailConnector
 
                 access_token, sender_email = await get_valid_google_token_for_workspace(db, workspace_id)

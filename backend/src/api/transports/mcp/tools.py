@@ -9,8 +9,7 @@ import uuid
 from typing import Any, Optional
 
 from core.database import AsyncSessionLocal
-from modules.commitments.schemas import CommitmentCreateRequest
-from modules.commitments.service import CommitmentService
+from modules.commitments import CommitmentCreateRequest, CommitmentService
 
 
 async def _resolve_workspace(workspace_id: Optional[str]) -> uuid.UUID:

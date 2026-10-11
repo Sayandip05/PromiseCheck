@@ -11,7 +11,7 @@ from core.database import sync_engine
 from core.logging import get_logger
 from core.redis import publish_event_sync, set_with_ttl_sync
 from jobs.celery_app import celery_app
-from modules.commitments.service import CommitmentService
+from modules.commitments import CommitmentService
 from modules.ingestion.models import IngestionJob
 
 logger = get_logger("modules.ingestion.tasks")

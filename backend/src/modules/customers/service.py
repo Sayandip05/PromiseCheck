@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.commitments.service import CommitmentService
+from modules.commitments import CommitmentService
 from modules.customers.models import Customer
 
 

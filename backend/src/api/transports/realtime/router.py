@@ -7,16 +7,13 @@ from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.logging import get_logger
 from core.redis import publish_event, set_with_ttl, get_value, subscribe_channel
 from core.security import decode_token
-from modules.iam.dependencies import get_current_user
-from modules.iam.models import User
-from modules.iam.service import get_active_workspace_id
+from modules.iam import User, get_active_workspace_id, get_current_user, get_user_by_id
 
 logger = get_logger("realtime_gateway")
 router = APIRouter(tags=["Real-time Events (SSE & Pub/Sub)"])
@@ -47,8 +44,7 @@ async def sse_event_stream(
     try:
         payload = decode_token(raw_token, expected_type="access")
         user_id = uuid.UUID(payload["sub"])
-        user_res = await db.execute(select(User).where(User.id == user_id))
-        user = user_res.scalar_one_or_none()
+        user = await get_user_by_id(db, user_id)
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

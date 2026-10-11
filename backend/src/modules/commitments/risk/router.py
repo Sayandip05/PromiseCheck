@@ -6,10 +6,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from modules.iam.dependencies import get_current_user
-from modules.iam.models import User
 from modules.commitments.risk.service import RiskService
-from modules.iam.service import get_active_workspace_id
+from modules.iam import User, get_active_workspace_id, get_current_user
 
 router = APIRouter(prefix="/risk", tags=["Risk & Deadlines"])
 

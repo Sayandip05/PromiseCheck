@@ -7,7 +7,7 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.redis import publish_event
-from modules.audit.service import record_audit_event
+from modules.audit import record_audit_event
 from modules.commitments.service import CommitmentService
 
 

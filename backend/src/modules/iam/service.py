@@ -530,3 +530,13 @@ async def get_active_workspace_id(
 
 _get_active_workspace_id = get_active_workspace_id
 
+
+async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]:
+    """Retrieve user entity by primary key."""
+    res = await db.execute(select(User).where(User.id == user_id))
+    return res.scalar_one_or_none()
+
+
+IdentityService.get_user_by_id = staticmethod(get_user_by_id)
+
+

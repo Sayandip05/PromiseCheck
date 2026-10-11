@@ -71,3 +71,19 @@ class Commitment(Base, TenantMixin):
     risk_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     recommended_step_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class DeliveryEvidence(Base, TenantMixin):
+    """Verified evidence proof record tying engineering work to customer commitments."""
+
+    __tablename__ = "delivery_evidences"
+
+    commitment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    commitment_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    customer_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(50), default="manual_signoff", nullable=False)  # release_notes, pr_merged, manual_signoff
+    evidence_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    evidence_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    verified_by: Mapped[str] = mapped_column(String(255), default="Team Lead", nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+

@@ -51,7 +51,6 @@ def collect_database_schema() -> dict:
         import modules.commitments.models  # noqa
         import modules.customers.models  # noqa
         import modules.ingestion.models  # noqa
-        import modules.delivery.models  # noqa
         import modules.audit.models  # noqa
         import modules.integrations.models  # noqa
         import core.outbox.models  # noqa

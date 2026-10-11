@@ -18,7 +18,6 @@ import modules.iam.models  # noqa: F401
 import modules.commitments.models  # noqa: F401
 import modules.customers.models  # noqa: F401
 import modules.ingestion.models  # noqa: F401
-import modules.delivery.models  # noqa: F401
 import modules.audit.models  # noqa: F401
 import modules.integrations.models  # noqa: F401
 import core.outbox.models  # noqa: F401

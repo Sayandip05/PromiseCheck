@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from modules.iam.dependencies import get_current_user
-from modules.delivery.service import DeliveryService
+from modules.commitments.delivery.service import DeliveryService
 from modules.iam.models import User
 from modules.iam.service import get_active_workspace_id
 

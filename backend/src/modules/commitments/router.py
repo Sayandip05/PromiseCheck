@@ -166,3 +166,19 @@ async def delete_commitment(
         user=user,
     )
     return {"status": "deleted", "id": deleted_id}
+
+
+# Sub-domain routers aggregated under commitments module
+from modules.commitments.delivery.router import router as delivery_router
+from modules.commitments.risk.router import router as risk_router
+from modules.commitments.tickets.router import router as engineering_router
+from modules.commitments.tickets.router import router as tickets_router
+
+__all__ = [
+    "router",
+    "delivery_router",
+    "risk_router",
+    "engineering_router",
+    "tickets_router",
+]
+

@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.redis import publish_event
 from modules.audit.service import record_audit_event
+from modules.commitments.models import DeliveryEvidence
 from modules.commitments.service import CommitmentService
-from modules.delivery.models import DeliveryEvidence
 from modules.iam.models import User
 
 

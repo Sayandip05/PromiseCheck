@@ -13,7 +13,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 2: IAM: auth, tokens, invitations, roles (2026-10-11, d4ca7a4, 31 tests added)
 - [x] Batch 3: Commitments lifecycle, delivery, audit, outbox write (2026-10-11, 15 tests added)
 - [x] Batch 4: Outbox dispatcher + event registry (2026-10-11, 29 tests added)
-- [ ] Batch 5: Celery tasks, task-name contracts, risk scan
+- [x] Batch 5: Celery tasks, task-name contracts, risk scan (2026-10-11, 17 tests added)
 - [ ] Batch 6: AI layer, connectors, SSRF, secrets
 - [ ] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter
 - [ ] Batch 8: Architecture, migration and contract guard tests
@@ -264,3 +264,19 @@ Next batch: ...
       1. Disabled `is_noop` check in `src/core/outbox/registry.py:94` -> `test_commitment_lifecycle_events_are_explicit_noops` failed as expected (assert `ValueError: Invalid route configuration`).
       2. Status update changed from `dispatched` to `pending` in `src/jobs/outbox_dispatcher.py:124` -> `test_ingestion_event_transitions_pending_to_dispatched_with_correct_kwargs` failed as expected (`TimeoutError`).
       3. Dead-letter failure threshold raised from 5 to 100 in `src/jobs/outbox_dispatcher.py:116` -> `test_unknown_event_increments_attempts_and_dead_letters_after_5_failures` failed as expected (assert 100 == 5).
+- Batch 5 Findings and Tests Added:
+  - 17 new tests added (5 unit in `backend/tests/unit/test_celery_contracts.py`, 12 integration in `backend/tests/integration/test_celery_tasks_execution.py`):
+    - Celery Task Name and Queue Contracts (CRITICAL #5): Pinned exact dictionary for 5 registered tasks (`jobs.tasks.scan_commitment_deadlines`, `jobs.tasks.dispatch_notification_alert`, `jobs.tasks.process_transcript_ingestion`, `jobs.tasks.process_audio_ingestion`, `jobs.tasks.cleanup_expired_tokens`), queue routes (`high_priority`, `ingestion`, `default`), queue definitions with direct exchange, and beat schedule intervals (hourly scan at 3600s, daily token cleanup at 86400s). Durability settings pinned (`task_acks_late=True`, `task_reject_on_worker_lost=True`, 24h result TTL).
+    - Deadline and SLA Risk Evaluation (CRITICAL #6): Deterministic evaluation with `freezegun`. Overdue (< now) and at-risk (< now + 7 days) correctly transition commitments and write outbox notification events. On-track (> 7 days) and terminal statuses (`delivered`, `canceled`, `superseded`) are safely ignored. Boundary conditions at exact current second correctly flag at-risk. Naive vs offset datetimes, promised_date Date objects, and US DST spring-forward transitions handled without drift. Multi-tenant workspace notification channels segregated (`ws:{workspace_id}:events`). Idempotency verified: re-running consecutively produces zero duplicate alerts.
+    - Ingestion Worker Tasks: `process_transcript_ingestion` happy path extracts promises via LLM, persists candidate commitments in `awaiting-review` status, and marks job completed. Failure path updates job status to `failed` with error details in JSON, emits failure event, and raises retry. `process_audio_ingestion` verifies transcription, candidates extraction, and guarantees unlinking/cleanup of the temporary audio file on disk in all exit paths.
+    - Notification and Maintenance Tasks: `dispatch_notification_alert` verifies delivery to Redis channel. `cleanup_expired_tokens` deletes refresh tokens and sessions expired > 24 hours in batches, keeping unexpired active tokens intact.
+  - Bugs found in src/: None new in Batch 5.
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (17 passed each run).
+    - Total test suite: 181 passed, 5 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Changed task route for `scan_commitment_deadlines` to `default` in `src/jobs/celery_app.py:50` -> `test_celery_task_routing_contract` failed as expected (assert `default == high_priority`).
+      2. Changed `at_risk_cutoff` from 7 days to 1 day in `src/modules/commitments/risk/tasks.py:59` -> `test_scan_commitment_deadlines_overdue_and_at_risk_transitions` failed as expected (assert 0 == 1).
+      3. Disabled temporary audio file unlinking in `src/modules/ingestion/tasks.py:169` -> `test_process_audio_ingestion_success_cleans_up_audio_file` failed as expected (`AssertionError: Audio file was not removed from disk`).

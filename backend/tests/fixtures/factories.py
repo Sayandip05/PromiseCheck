@@ -88,7 +88,9 @@ class CommitmentFactory(factory.Factory):
     status_label = "Awaiting review"
     category = "awaiting-review"
     is_confirmed = False
-    evidence_count = 0
+
+
+from modules.ingestion.models import IngestionJob
 
 
 class DeliveryEvidenceFactory(factory.Factory):
@@ -100,11 +102,48 @@ class DeliveryEvidenceFactory(factory.Factory):
     id = factory.LazyFunction(uuid.uuid4)
     workspace_id = factory.LazyFunction(uuid.uuid4)
     commitment_id = factory.LazyFunction(uuid.uuid4)
-    evidence_type = "pr"
-    source_url = "https://github.com/org/repo/pull/42"
-    summary = "Merged pull request implementing SSO integration"
-    confidence_score = 0.95
-    verified = True
+    commitment_title = "Enterprise Feature Fulfillment"
+    customer_name = "Enterprise Customer"
+    evidence_type = "pr_merged"
+    evidence_title = "Pull Request #42 Merged"
+    evidence_url = "https://github.com/org/repo/pull/42"
+    verified_by = "Lead Engineer"
+    notes = "Verified against delivery criteria"
+
+
+class IngestionJobFactory(factory.Factory):
+    """Factory for creating IngestionJob instances."""
+
+    class Meta:
+        model = IngestionJob
+
+    id = factory.LazyFunction(uuid.uuid4)
+    workspace_id = factory.LazyFunction(uuid.uuid4)
+    job_id = factory.Sequence(lambda n: f"job_{n}_{uuid.uuid4().hex[:6]}")
+    customer_name = "Enterprise Customer"
+    meeting_title = "Roadmap Sync"
+    source_type = "upload"
+    status = "completed"
+    candidates_extracted = 2
+    transcript_preview = "Customer requested SAML 2.0 integration by Nov 15."
+    candidates_json = factory.LazyFunction(list)
+
+
+class AuditEventFactory(factory.Factory):
+    """Factory for creating AuditEvent instances."""
+
+    class Meta:
+        model = AuditEvent
+
+    id = factory.LazyFunction(uuid.uuid4)
+    workspace_id = factory.LazyFunction(uuid.uuid4)
+    actor_id = factory.LazyFunction(uuid.uuid4)
+    action = "commitment.created"
+    target_type = "commitment"
+    target_id = factory.LazyFunction(lambda: str(uuid.uuid4()))
+    description = "Created commitment for Enterprise Customer"
+    payload = factory.LazyFunction(dict)
+    ip_address = "127.0.0.1"
 
 
 class IntegrationFactory(factory.Factory):
@@ -123,3 +162,4 @@ class IntegrationFactory(factory.Factory):
     channel_or_scope = "#general"
     description = "Slack notifications channel"
     config_json = factory.LazyFunction(lambda: {"webhook_url": "https://hooks.slack.com/services/T00/B00/X00"})
+

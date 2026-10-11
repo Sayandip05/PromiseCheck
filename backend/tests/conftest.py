@@ -38,9 +38,11 @@ from tests.fixtures.database import (
     get_pg_manager,
 )
 from tests.fixtures.factories import (
+    AuditEventFactory,
     CommitmentFactory,
     CustomerFactory,
     DeliveryEvidenceFactory,
+    IngestionJobFactory,
     IntegrationFactory,
     MembershipFactory,
     UserFactory,

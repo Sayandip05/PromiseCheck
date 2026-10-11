@@ -9,7 +9,7 @@
 Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchecked batch.
 
 - [x] Batch 0: Reconcile with audit + test infrastructure (2026-10-11, 1d59481, 3 tests added)
-- [ ] Batch 1: Tenant isolation and authorization matrix
+- [x] Batch 1: Tenant isolation and authorization matrix (2026-10-11, 331063d, 25 tests added)
 - [ ] Batch 2: IAM: auth, tokens, invitations, roles
 - [ ] Batch 3: Commitments lifecycle, delivery, audit, outbox write
 - [ ] Batch 4: Outbox dispatcher + event registry
@@ -187,3 +187,21 @@ Next batch: ...
   2. Asyncpg connection pooling across pytest-asyncio function-scoped loops caused `RuntimeError: Task got Future attached to a different loop`. Resolved by setting `poolclass=NullPool` on `create_async_engine` in `tests/fixtures/database.py`.
   3. Alembic config `script_location = migrations` in `alembic.ini` resolved relative to CWD; pinned to `backend_dir / "migrations"` in `tests/fixtures/database.py`.
   4. Local Redis DB 0 contains 844 existing development keys; test Redis fixtures explicitly target isolated DB 15 (or port 6380) to prevent test flushes from polluting developer state.
+- Batch 1 Findings and Tests Added:
+  - 25 new integration tests added in `backend/tests/integration/test_tenant_isolation_matrix.py`:
+    - Full domain tenant isolation: commitments, customers, delivery evidence/verification, ingestion jobs, workspace integrations, audit events, notifications, risk assessments, engineering tickets, MCP tools, SSE realtime channel, workspace members.
+    - System-wide auth matrix: route table reflection checks all 31 protected endpoints for unauthenticated rejection (401), expired JWT rejection (401), foreign workspace rejection (403), membership absence rejection (403).
+    - Allowlist integrity: public route allowlist guarded against accidental addition of sensitive endpoints.
+    - RBAC enforcement: Admin vs Member vs Viewer role hierarchy checks, MCP write tool blocking on viewer role.
+  - Bugs found in src/ (marked with `@pytest.mark.xfail(strict=True)` in test suite):
+    1. **BUG-1:** `src/modules/customers/service.py:132` returns `403 Forbidden` instead of `404 Not Found` when a tenant queries a customer ID belonging to another workspace, leaking the existence of the foreign customer ID. Tested in `test_cross_tenant_customer_get_returns_404_not_403`.
+    2. **BUG-2:** `src/modules/commitments/service.py:279, 368, 418` returns `403 Forbidden` instead of `404 Not Found` on cross-tenant PATCH, DELETE, and CONFIRM operations, leaking commitment existence across tenants. Tested in `test_cross_tenant_commitments_patch_and_delete_returns_404_not_403`.
+    3. **BUG-3:** `src/modules/commitments/models.py:76-89` defines columns on `DeliveryEvidence` (`commitment_title`, `customer_name`, `evidence_title`, `evidence_url`, `verified_by`) that do not exist in the PostgreSQL table `delivery_evidences` created by migration `0001_baseline_schema_v1.py` (which only contains `id`, `commitment_id`, `evidence_type`, `source_url`, `notes`, `metadata_json`, `created_at`, `updated_at`), causing `asyncpg.exceptions.UndefinedColumnError` on query execution. Tested in `test_cross_tenant_delivery_evidence_isolation`.
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (22 passed, 3 xfailed each run).
+    - Total test suite: 91 passed, 3 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Mutation sanity checks (3/3):
+      1. Unauthenticated 401 check mutated to 200 in `src/modules/iam/dependencies.py` -> `test_all_protected_routes_reject_unauthenticated` failed as expected.
+      2. Tenant filter removed from `select(Commitment)` in `src/modules/commitments/service.py:125` -> `test_cross_tenant_commitments_isolation` failed as expected.
+      3. MCP write tools set emptied in `src/api/transports/mcp/server.py:123` -> `test_mcp_write_tool_blocks_viewer_role` failed as expected.

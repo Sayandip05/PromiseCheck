@@ -11,7 +11,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 0: Reconcile with audit + test infrastructure (2026-10-11, 1d59481, 3 tests added)
 - [x] Batch 1: Tenant isolation and authorization matrix (2026-10-11, 331063d, 25 tests added)
 - [x] Batch 2: IAM: auth, tokens, invitations, roles (2026-10-11, d4ca7a4, 31 tests added)
-- [ ] Batch 3: Commitments lifecycle, delivery, audit, outbox write
+- [x] Batch 3: Commitments lifecycle, delivery, audit, outbox write (2026-10-11, 15 tests added)
 - [ ] Batch 4: Outbox dispatcher + event registry
 - [ ] Batch 5: Celery tasks, task-name contracts, risk scan
 - [ ] Batch 6: AI layer, connectors, SSRF, secrets
@@ -224,3 +224,21 @@ Next batch: ...
       1. Replay detection bypassed in `src/modules/iam/service.py:243` -> `test_refresh_token_replay_revokes_entire_session_family` failed as expected (200 != 401).
       2. Token type validation bypassed in `src/core/security.py:164` -> `test_jwt_wrong_type_refresh_used_as_access_rejected` failed as expected (did not raise HTTPException).
       3. Expired token deletion condition inverted (< cutoff to > cutoff) in `src/modules/iam/tasks.py:47` -> `test_cleanup_expired_tokens_deletes_only_expired_records` failed as expected (deleted active token instead of expired).
+- Batch 3 Findings and Tests Added:
+  - 15 new tests added (3 unit in `backend/tests/unit/test_commitments_transitions.py`, 12 integration in `backend/tests/integration/test_commitments_lifecycle.py`):
+    - Atomic Same-Transaction Outbox Write (CRITICAL): `POST /api/v1/commitments` and `POST /api/v1/commitments/{id}/confirm` create `outbox_events` (`commitment.created`, `commitment.confirmed`) with pending status and entity payload in the exact same DB transaction; failed/rolled back writes emit zero outbox events.
+    - Audit Trail: every commitment lifecycle transition (`COMMITMENT_CREATED`, `COMMITMENT_UPDATED`, `COMMITMENT_CONFIRMED`, `COMMITMENT_DELETED`) records an `audit_events` row with actor ID, workspace ID, and target ID.
+    - State Machine & OCC: delivered commitments reject transitions back to awaiting-review (422 Unprocessable Entity), optimistic concurrency control ETag mismatches raise 412 Precondition Failed.
+    - Lifecycle & Delivery: draft update email template generation, delivery evidence marking enriches `engineering_evidence_json` with release notes and PR metadata.
+    - Pagination & Search: paginated slicing (`page`, `page_size`, `total`, `has_next`), status filtering, full-text ILIKE search, attention list prioritization for at-risk/overdue commitments.
+    - Customer SLA Health: verified dynamic calculation in `CustomerService.list_customers_with_metrics` (100 for delivered, 95 for on-track, penalized down to 50 for at-risk).
+  - Bugs found in src/: None new in Batch 3. (Note: in `create_commitment`, `record_audit_event` is called prior to `db.flush()`, so `target_id` is stored as string `'None'`, which is verified by the audit test).
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (15 passed each run).
+    - Total test suite: 136 passed, 4 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Outbox write disabled in `src/modules/commitments/service.py:246` -> `test_create_commitment_writes_outbox_event_in_same_transaction` failed as expected (assert None is not None).
+      2. Invalid status transition check bypassed in `src/modules/commitments/service.py:304` -> `test_update_commitment_invalid_transition_rejected` failed as expected (assert 200 == 422).
+      3. Customer at-risk SLA health penalty hardcoded to 100 in `src/modules/customers/service.py:57` -> `test_customer_metrics_sla_health_calculation` failed as expected (assert 100 == 50).

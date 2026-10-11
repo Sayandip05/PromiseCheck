@@ -13,7 +13,7 @@ from core.redis import (
     subscribe_channel,
 )
 from jobs.celery_app import check_redis_health
-from jobs.tasks import scan_commitment_deadlines
+from modules.commitments.risk.tasks import scan_commitment_deadlines
 
 
 async def _is_redis_reachable() -> bool:

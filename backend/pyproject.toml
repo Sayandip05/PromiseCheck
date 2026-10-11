@@ -75,13 +75,7 @@ layers = [
     "connectors | ai",
     "core",
 ]
-ignore_imports = [
-    # remove in step 10:
-    "jobs.tasks -> modules.commitments.models",
-    "jobs.tasks -> modules.commitments.service",
-    "jobs.tasks -> modules.ingestion.models",
-    "jobs.tasks -> modules.iam.models",
-]
+ignore_imports = []
 
 [[tool.importlinter.contracts]]
 name = "No cycles between modules"

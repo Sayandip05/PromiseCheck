@@ -4,11 +4,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from sqlalchemy import DateTime, text
+from sqlalchemy import DateTime, create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from core.config import settings
 
@@ -68,6 +68,36 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False,
 )
+
+# Sync Engine and Session Factory for background workers & tasks
+_raw_sync_url = (
+    settings.DATABASE_SYNC_URL
+    or os.getenv("DATABASE_SYNC_URL")
+    or "sqlite:///./promisecheck.db"
+)
+try:
+    _sync_url_obj = make_url(_raw_sync_url)
+    if _sync_url_obj.drivername.startswith("sqlite") and _sync_url_obj.database and _sync_url_obj.database.startswith("./"):
+        _abs_sync_path = str((_PROJECT_ROOT / _sync_url_obj.database[2:]).resolve())
+        _db_sync_url = str(_sync_url_obj.set(database=_abs_sync_path))
+    else:
+        _db_sync_url = _raw_sync_url
+except Exception:
+    _db_sync_url = _raw_sync_url
+
+_sync_engine_kwargs: dict = {
+    "pool_pre_ping": True,
+    "pool_recycle": 1800,
+}
+if "sqlite" in _db_sync_url:
+    _sync_engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    _sync_engine_kwargs["pool_size"] = 5
+    _sync_engine_kwargs["max_overflow"] = 10
+
+sync_engine = create_engine(_db_sync_url, **_sync_engine_kwargs)
+_sync_engine = sync_engine
+SyncSessionLocal = sessionmaker(bind=sync_engine, expire_on_commit=False)
 
 
 class Base(DeclarativeBase):

@@ -21,7 +21,12 @@ _high_priority_exchange = Exchange("high_priority", type="direct")
 _ingestion_exchange = Exchange("ingestion", type="direct")
 
 celery_app.conf.update(
-    include=["jobs.tasks"],
+    include=[
+        "modules.ingestion.tasks",
+        "modules.commitments.risk.tasks",
+        "modules.iam.tasks",
+        "modules.notifications.tasks",
+    ],
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
@@ -66,6 +71,17 @@ celery_app.conf.update(
         },
     },
 )
+
+celery_app.autodiscover_tasks(
+    [
+        "modules.ingestion",
+        "modules.commitments.risk",
+        "modules.iam",
+        "modules.notifications",
+    ],
+    force=True,
+)
+
 
 
 async def check_redis_health() -> tuple[bool, str]:

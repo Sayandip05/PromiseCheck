@@ -8,9 +8,9 @@ from fastapi.testclient import TestClient
 from core.database import AsyncSessionLocal
 from core.security import create_access_token, Role
 from modules.commitments.models import Commitment
-from modules.iam.models import Membership, User, Workspace
 from core.outbox.models import OutboxEvent
-from jobs.tasks import scan_commitment_deadlines
+from modules.iam.models import Membership, User, Workspace
+from modules.commitments.risk.tasks import scan_commitment_deadlines
 
 
 @pytest.mark.asyncio

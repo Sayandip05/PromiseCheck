@@ -144,24 +144,18 @@ async def run_dispatcher() -> None:
 
 
 def _dispatch_to_celery(celery_app: Any, row: Any) -> None:
-    """Route an outbox event to the correct Celery task.
+    """Route an outbox event to the correct Celery task via send_task by registered name.
 
     Courier responsibility:
     - Never executes business logic or synchronous network calls in poller loop.
-    - Routes to Celery via .apply_async() with target queues.
+    - Routes to Celery via send_task() with target queues without importing task objects.
     """
-    from jobs.tasks import (
-        dispatch_notification_alert,
-        process_audio_ingestion,
-        process_transcript_ingestion,
-        scan_commitment_deadlines,
-    )
-
     event_type: str = row.event_type
     payload: dict = row.payload or {}
 
     if event_type == "ingestion.transcript.process":
-        process_transcript_ingestion.apply_async(
+        celery_app.send_task(
+            "jobs.tasks.process_transcript_ingestion",
             kwargs={
                 "job_id": payload["job_id"],
                 "workspace_id": payload["workspace_id"],
@@ -173,7 +167,8 @@ def _dispatch_to_celery(celery_app: Any, row: Any) -> None:
         )
 
     elif event_type == "ingestion.audio.process":
-        process_audio_ingestion.apply_async(
+        celery_app.send_task(
+            "jobs.tasks.process_audio_ingestion",
             kwargs={
                 "job_id": payload["job_id"],
                 "workspace_id": payload["workspace_id"],
@@ -185,13 +180,17 @@ def _dispatch_to_celery(celery_app: Any, row: Any) -> None:
         )
 
     elif event_type == "risk.scan.request":
-        scan_commitment_deadlines.apply_async(queue="high_priority")
+        celery_app.send_task(
+            "jobs.tasks.scan_commitment_deadlines",
+            queue="high_priority",
+        )
 
     elif event_type in ("notification.deadline.overdue", "notification.deadline.at_risk"):
         ws_id = payload.get("workspace_id", "")
         channel = f"ws:{ws_id}:events" if ws_id else "global:events"
         ev_name = event_type.upper().replace(".", "_")
-        dispatch_notification_alert.apply_async(
+        celery_app.send_task(
+            "jobs.tasks.dispatch_notification_alert",
             kwargs={"channel": channel, "event_type": ev_name, "payload": payload},
             queue="high_priority",
         )

@@ -17,7 +17,7 @@ def auth_headers() -> dict[str, str]:
     """Provision a clean test user, workspace, and valid bearer token."""
     import uuid
     from sqlalchemy.orm import Session
-    from jobs.tasks import _sync_engine
+    from core.database import _sync_engine
     from modules.iam.models import User, Workspace, WorkspaceMember, Role
     from core.security import create_access_token
 

@@ -4,11 +4,9 @@ import uuid
 import pytest
 from core.redis import get_async_redis, publish_event, read_stream_events, set_with_ttl_sync, get_sync_redis
 from jobs.celery_app import celery_app
-from jobs.tasks import (
-    cleanup_expired_tokens,
-    process_transcript_ingestion,
-    scan_commitment_deadlines,
-)
+from modules.commitments.risk.tasks import scan_commitment_deadlines
+from modules.iam.tasks import cleanup_expired_tokens
+from modules.ingestion.tasks import process_transcript_ingestion
 
 
 def test_celery_priority_queues_and_routing():

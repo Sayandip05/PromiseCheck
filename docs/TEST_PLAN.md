@@ -10,7 +10,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 
 - [x] Batch 0: Reconcile with audit + test infrastructure (2026-10-11, 1d59481, 3 tests added)
 - [x] Batch 1: Tenant isolation and authorization matrix (2026-10-11, 331063d, 25 tests added)
-- [ ] Batch 2: IAM: auth, tokens, invitations, roles
+- [x] Batch 2: IAM: auth, tokens, invitations, roles (2026-10-11, d4ca7a4, 31 tests added)
 - [ ] Batch 3: Commitments lifecycle, delivery, audit, outbox write
 - [ ] Batch 4: Outbox dispatcher + event registry
 - [ ] Batch 5: Celery tasks, task-name contracts, risk scan
@@ -205,3 +205,22 @@ Next batch: ...
       1. Unauthenticated 401 check mutated to 200 in `src/modules/iam/dependencies.py` -> `test_all_protected_routes_reject_unauthenticated` failed as expected.
       2. Tenant filter removed from `select(Commitment)` in `src/modules/commitments/service.py:125` -> `test_cross_tenant_commitments_isolation` failed as expected.
       3. MCP write tools set emptied in `src/api/transports/mcp/server.py:123` -> `test_mcp_write_tool_blocks_viewer_role` failed as expected.
+- Batch 2 Findings and Tests Added:
+  - 31 new tests added (7 unit in `backend/tests/unit/test_iam_jwt_tokens.py`, 24 integration in `backend/tests/integration/test_iam_lifecycle.py`):
+    - Registration: user provisioning, Bcrypt hashing (salt rounds=12), auto-provisioning default workspace with ADMIN role, duplicate email rejection (generic error, no PII leakage), Pydantic input validation bounds.
+    - Login & Enumeration Defense: valid login cookie setting, wrong password rejection (401), non-existent user rejection (401), anti-enumeration check (identical response body and status code), deactivated account block (403), `/auth/me` user context with workspaces and roles.
+    - Token Lifecycle & Replay Revocation (CRITICAL): refresh token rotation, replay of used token revokes entire session family in DB, subsequent attempts with rotated token fail with 401, expired refresh token rejected (401), logout revokes family and blacklists access token JTI in Redis (replayed access token rejected with 401).
+    - Celery Maintenance: `jobs.tasks.cleanup_expired_tokens` safely purges records expired > 24 hours ago while preserving active refresh tokens and sessions.
+    - Google OAuth / OIDC: new user auto-provisioning with Google Identity, existing email linking to prevent duplicates, invalid ID token rejection (401), unverified email rejection (401).
+    - Workspaces & Tenancy: workspace creation assigns creator as ADMIN, duplicate slug rejection (400), member listing, invitation creation with secure token, unexpired vs expired/already-accepted invitation DB query filtering.
+  - Bugs found in src/ (marked with `@pytest.mark.xfail(strict=True)` in test suite):
+    4. **BUG-4:** `src/modules/iam/router.py:267-268` in `POST /api/v1/workspaces` passes `system_user_id = uuid.uuid4()` to `WorkspaceService.create_workspace` without creating the user in the `users` table first. When `create_workspace` creates an initial ADMIN membership, PostgreSQL raises `ForeignKeyViolationError` on `memberships_user_id_fkey`, returning 500 Internal Server Error. Tested in `test_workspace_create_assigns_admin`. (Note: `test_workspace_create_via_service_layer_assigns_admin` proves the service layer logic works properly when given an existing user).
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (30 passed, 1 xfailed each run).
+    - Total test suite: 121 passed, 4 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Replay detection bypassed in `src/modules/iam/service.py:243` -> `test_refresh_token_replay_revokes_entire_session_family` failed as expected (200 != 401).
+      2. Token type validation bypassed in `src/core/security.py:164` -> `test_jwt_wrong_type_refresh_used_as_access_rejected` failed as expected (did not raise HTTPException).
+      3. Expired token deletion condition inverted (< cutoff to > cutoff) in `src/modules/iam/tasks.py:47` -> `test_cleanup_expired_tokens_deletes_only_expired_records` failed as expected (deleted active token instead of expired).

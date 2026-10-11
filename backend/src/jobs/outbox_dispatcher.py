@@ -143,65 +143,18 @@ async def run_dispatcher() -> None:
             await asyncio.sleep(_ERROR_SLEEP)
 
 
+from core.outbox.registry import dispatch_event
+
+
 def _dispatch_to_celery(celery_app: Any, row: Any) -> None:
-    """Route an outbox event to the correct Celery task via send_task by registered name.
+    """Route an outbox event to the correct Celery task via core.outbox.registry.
 
     Courier responsibility:
     - Never executes business logic or synchronous network calls in poller loop.
     - Routes to Celery via send_task() with target queues without importing task objects.
+    - Acknowledges explicit no-op lifecycle events without error or retry storm.
     """
-    event_type: str = row.event_type
-    payload: dict = row.payload or {}
-
-    if event_type == "ingestion.transcript.process":
-        celery_app.send_task(
-            "jobs.tasks.process_transcript_ingestion",
-            kwargs={
-                "job_id": payload["job_id"],
-                "workspace_id": payload["workspace_id"],
-                "transcript_text": payload["transcript_text"],
-                "customer_name": payload.get("customer_name", "Customer"),
-                "meeting_title": payload.get("meeting_title", "Meeting"),
-            },
-            queue="ingestion",
-        )
-
-    elif event_type == "ingestion.audio.process":
-        celery_app.send_task(
-            "jobs.tasks.process_audio_ingestion",
-            kwargs={
-                "job_id": payload["job_id"],
-                "workspace_id": payload["workspace_id"],
-                "file_path": payload["file_path"],
-                "customer_name": payload.get("customer_name", "Customer"),
-                "meeting_title": payload.get("meeting_title", "Meeting"),
-            },
-            queue="ingestion",
-        )
-
-    elif event_type == "risk.scan.request":
-        celery_app.send_task(
-            "jobs.tasks.scan_commitment_deadlines",
-            queue="high_priority",
-        )
-
-    elif event_type in ("notification.deadline.overdue", "notification.deadline.at_risk"):
-        ws_id = payload.get("workspace_id", "")
-        channel = f"ws:{ws_id}:events" if ws_id else "global:events"
-        ev_name = event_type.upper().replace(".", "_")
-        celery_app.send_task(
-            "jobs.tasks.dispatch_notification_alert",
-            kwargs={"channel": channel, "event_type": ev_name, "payload": payload},
-            queue="high_priority",
-        )
-        logger.info(f"Dispatched deadline notification for commitment {payload.get('commitment_id')}")
-
-    else:
-        logger.warning(
-            f"Dispatcher: unknown event_type '{event_type}' on outbox row {row.id} — "
-            "leaving pending until a handler is registered"
-        )
-        raise ValueError(f"No Celery handler for event_type '{event_type}'")
+    dispatch_event(celery_app, row)
 
 
 if __name__ == "__main__":

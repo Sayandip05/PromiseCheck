@@ -12,6 +12,9 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_metrics_endpoint_exposition_format(client: TestClient):
     """Verify that /api/v1/metrics and /metrics export valid Prometheus plain text format."""
     # Issue a request to increment telemetry

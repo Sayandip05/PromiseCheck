@@ -16,6 +16,9 @@ def client(auth_client: TestClient) -> TestClient:
     return auth_client
 
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_idempotency_retry_prevents_duplicate_commitments(client: TestClient):
     """Verify that retrying a commitment creation with Idempotency-Key returns cached response without duplicating records."""

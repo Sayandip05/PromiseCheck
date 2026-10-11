@@ -3,6 +3,9 @@
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_liveness_probe(client: TestClient) -> None:

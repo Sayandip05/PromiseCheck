@@ -15,6 +15,8 @@ from core.redis import (
 from jobs.celery_app import check_redis_health
 from modules.commitments.risk.tasks import scan_commitment_deadlines
 
+pytestmark = pytest.mark.integration
+
 
 async def _is_redis_reachable() -> bool:
     try:

@@ -11,6 +11,8 @@ from modules.customers.models import Customer
 from modules.iam.models import Membership, User, Workspace
 from src.main import app
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def client() -> TestClient:

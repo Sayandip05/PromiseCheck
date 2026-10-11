@@ -11,6 +11,9 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_security_headers_contract(client: TestClient):
     """Verify presence and strict values of all required enterprise security headers."""
     res = client.get("/healthz")

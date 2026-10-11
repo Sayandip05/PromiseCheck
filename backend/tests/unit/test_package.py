@@ -4,6 +4,9 @@ from src.core.config import settings
 from src.core.database import Base
 from src.jobs.celery_app import celery_app
 from src.main import app
+import pytest
+
+pytestmark = pytest.mark.unit
 
 
 def test_package_exports() -> None:

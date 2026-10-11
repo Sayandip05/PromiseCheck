@@ -10,6 +10,8 @@ import pytest
 from core.outbox.registry import get_route
 from jobs.outbox_dispatcher import _dispatch_to_celery
 
+pytestmark = pytest.mark.unit
+
 
 def test_commitment_lifecycle_events_dispatch_cleanly():
     """Verifies commitment lifecycle events (created, updated, confirmed) dispatch

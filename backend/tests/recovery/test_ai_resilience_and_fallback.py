@@ -5,6 +5,8 @@ import pytest
 
 from ai.promise_extractor import PromiseExtractor
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.asyncio
 async def test_empty_transcript_handling():

@@ -15,6 +15,9 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.mark.asyncio
 async def test_commitment_end_to_end_lifecycle(client: TestClient):
     """Verify entire workflow: Ingestion -> Confirmation -> Delivery Verification -> Audit Trail."""

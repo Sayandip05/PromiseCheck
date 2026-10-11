@@ -7,6 +7,8 @@ from fastapi import HTTPException
 from connectors.external_mcp import ExternalMCPConnector
 from connectors.ssrf_guard import _is_blocked_ip, validate_no_ssrf
 
+pytestmark = pytest.mark.unit
+
 
 def test_blocked_ip_ranges():
     """Verify internal and metadata IPs are flagged as blocked."""

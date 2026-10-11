@@ -9,6 +9,7 @@ from modules.iam.tasks import cleanup_expired_tokens
 from modules.ingestion.tasks import process_transcript_ingestion
 
 
+@pytest.mark.unit
 def test_celery_priority_queues_and_routing():
     """Verify that Celery priority queues (high_priority, default, ingestion) and routing rules are configured."""
     queue_names = {q.name for q in celery_app.conf.task_queues}
@@ -25,6 +26,7 @@ def test_celery_priority_queues_and_routing():
     assert celery_app.conf.task_acks_late is True
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_redis_streams_persistence_without_active_subscribers():
     """Verify that events are durably persisted to Redis Streams even if no subscriber is active."""
@@ -56,6 +58,7 @@ async def test_redis_streams_persistence_without_active_subscribers():
     assert len(replay_after) == 0
 
 
+@pytest.mark.integration
 def test_job_state_24h_ttl_consistency():
     """Verify that job state writes use a consistent 86400s (24-hour) TTL."""
     try:
@@ -72,6 +75,7 @@ def test_job_state_24h_ttl_consistency():
     assert 86300 <= ttl <= 86400
 
 
+@pytest.mark.integration
 def test_distributed_scheduler_lock_deduplication():
     """Verify that scan_commitment_deadlines skips duplicate execution when distributed lock is held."""
     try:

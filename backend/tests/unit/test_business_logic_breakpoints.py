@@ -12,6 +12,8 @@ from core.outbox.models import OutboxEvent
 from modules.iam.models import Membership, User, Workspace
 from modules.commitments.risk.tasks import scan_commitment_deadlines
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 async def test_google_auth_requires_credential(client: TestClient):

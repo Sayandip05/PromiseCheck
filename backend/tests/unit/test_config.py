@@ -4,6 +4,8 @@ import pytest
 
 from core.config import Settings
 
+pytestmark = pytest.mark.unit
+
 
 def test_cors_origins_parsing() -> None:
     """Test parsing CORS origins from list, comma-separated string, and JSON."""

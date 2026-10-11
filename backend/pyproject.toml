@@ -35,9 +35,15 @@ dependencies = [
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=7.0.0",
+    "pytest-repeat>=0.9.3",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "import-linter>=2.15",
+    "freezegun>=1.5.0",
+    "respx>=0.22.0",
+    "testcontainers[postgres]>=4.9.0",
+    "factory-boy>=3.3.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -47,6 +53,12 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+addopts = "--strict-markers"
+markers = [
+    "unit: Pure unit tests (no DB, no Redis, no network, no broker)",
+    "integration: Integration tests (PostgreSQL, Redis, TestClient, or eager Celery)",
+    "e2e: End-to-end full running stack tests",
+]
 
 [tool.ruff]
 line-length = 100

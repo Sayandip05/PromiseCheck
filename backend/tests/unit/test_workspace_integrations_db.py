@@ -11,6 +11,9 @@ def client(auth_client: TestClient) -> TestClient:
     return auth_client
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_list_integrations_unauthenticated_returns_401():
     """Verify that unauthenticated request to integrations returns 401 Unauthorized."""
     raw_client = TestClient(app)

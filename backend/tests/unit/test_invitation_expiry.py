@@ -8,6 +8,8 @@ from core.database import AsyncSessionLocal
 from modules.iam.models import Invitation, Workspace
 from modules.iam.service import WorkspaceService
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 async def test_invitation_valid_and_expiry_filtering():

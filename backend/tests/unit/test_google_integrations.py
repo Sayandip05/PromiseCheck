@@ -10,6 +10,9 @@ def client(auth_client: TestClient) -> TestClient:
     return auth_client
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_google_authorize_url_generation(client: TestClient):
     """Verify Google OAuth authorization URL generates correct scopes and parameters."""
     res = client.get("/api/v1/integrations/google/authorize")

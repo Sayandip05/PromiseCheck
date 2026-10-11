@@ -11,6 +11,8 @@ from core.rate_limiter import (
     _InMemoryTokenBucketStore,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.asyncio
 async def test_sliding_window_in_memory_burst_and_recovery():

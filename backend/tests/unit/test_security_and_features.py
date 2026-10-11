@@ -26,6 +26,7 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+@pytest.mark.integration
 def test_security_headers_and_tracing(client: TestClient):
     """Verify security headers, X-Request-ID, and X-Process-Time are present."""
     res = client.get("/healthz")
@@ -38,6 +39,7 @@ def test_security_headers_and_tracing(client: TestClient):
     assert "ms" in res.headers["x-process-time"]
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_all_connectors_fail_fast_when_unconfigured():
     """Verify connectors fail fast with ConnectorNotConfiguredError instead of silent fluent mocks."""
@@ -94,6 +96,7 @@ async def test_all_connectors_fail_fast_when_unconfigured():
 
 
 
+@pytest.mark.integration
 def test_commitments_and_customers_endpoints(auth_client: TestClient):
     """Verify commitments and live customer metric calculations with authenticated client."""
     # Create customer and commitment
@@ -130,6 +133,7 @@ def test_commitments_and_customers_endpoints(auth_client: TestClient):
         assert c["healthScore"] >= 0
 
 
+@pytest.mark.integration
 def test_risk_evaluation_endpoint(auth_client: TestClient):
     """Verify POST /api/v1/risk/evaluate scans commitments and returns metrics."""
     res = auth_client.post("/api/v1/risk/evaluate")
@@ -141,6 +145,7 @@ def test_risk_evaluation_endpoint(auth_client: TestClient):
     assert "on_track_count" in data
 
 
+@pytest.mark.integration
 def test_delivery_verification_flow(auth_client: TestClient):
     """Verify delivery evidence endpoint returns 200."""
     res = auth_client.get("/api/v1/delivery/evidence")
@@ -150,6 +155,7 @@ def test_delivery_verification_flow(auth_client: TestClient):
 
 
 
+@pytest.mark.unit
 def test_jwt_secret_crash_on_missing_key():
     """Verify _get_jwt_secret raises RuntimeError when no secret key is configured."""
     from core.security import _get_jwt_secret
@@ -164,6 +170,7 @@ def test_jwt_secret_crash_on_missing_key():
         assert "JWT signing secret is not configured" in str(exc.value)
 
 
+@pytest.mark.integration
 def test_csp_production_policy_no_unsafe_inline(client: TestClient):
     """Verify CSP header strictly forbids unsafe-inline in production mode."""
     from core.config import settings
@@ -175,6 +182,7 @@ def test_csp_production_policy_no_unsafe_inline(client: TestClient):
         assert "default-src 'none'" in csp
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_audio_upload_size_limit_rejection():
     """Verify audio file upload exceeding 200 MB raises HTTP 413 Payload Too Large."""
@@ -195,6 +203,7 @@ async def test_audio_upload_size_limit_rejection():
     assert "200 MB" in exc.value.detail
 
 
+@pytest.mark.integration
 def test_registration_error_does_not_leak_email_pii(client: TestClient):
     """Verify duplicate user registration does not echo back email address (PII protection)."""
     unique_email = f"pii_check_{uuid.uuid4().hex[:8]}@example.com"

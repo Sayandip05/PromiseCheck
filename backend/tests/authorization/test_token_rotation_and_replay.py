@@ -12,6 +12,9 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_jwt_token_rotation_and_replay_protection(client: TestClient):
     """Test full JWT token lifecycle, refresh token rotation, and replay attack invalidation."""
     unique_email = f"user_{uuid.uuid4().hex[:8]}@example.com"

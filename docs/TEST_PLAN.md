@@ -14,7 +14,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 3: Commitments lifecycle, delivery, audit, outbox write (2026-10-11, 15 tests added)
 - [x] Batch 4: Outbox dispatcher + event registry (2026-10-11, 29 tests added)
 - [x] Batch 5: Celery tasks, task-name contracts, risk scan (2026-10-11, 17 tests added)
-- [ ] Batch 6: AI layer, connectors, SSRF, secrets
+- [x] Batch 6: AI layer, connectors, SSRF, secrets (2026-10-11, 80 tests added)
 - [ ] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter
 - [ ] Batch 8: Architecture, migration and contract guard tests
 - [ ] Batch 9: End-to-end (real stack)
@@ -280,3 +280,23 @@ Next batch: ...
       1. Changed task route for `scan_commitment_deadlines` to `default` in `src/jobs/celery_app.py:50` -> `test_celery_task_routing_contract` failed as expected (assert `default == high_priority`).
       2. Changed `at_risk_cutoff` from 7 days to 1 day in `src/modules/commitments/risk/tasks.py:59` -> `test_scan_commitment_deadlines_overdue_and_at_risk_transitions` failed as expected (assert 0 == 1).
       3. Disabled temporary audio file unlinking in `src/modules/ingestion/tasks.py:169` -> `test_process_audio_ingestion_success_cleans_up_audio_file` failed as expected (`AssertionError: Audio file was not removed from disk`).
+- Batch 6 Findings and Tests Added:
+  - 80 new tests added (35 unit in `backend/tests/unit/test_ai_and_connectors.py`, 45 unit in `backend/tests/unit/test_ssrf_and_secrets.py`):
+    - AI Promise Extractor & AIClient: Prompt injection resistance without schema corruption or command execution, handling extra/missing fields in LLM candidate JSON, transcript truncation to 4000 characters to prevent prompt injection and context overflow, explicit error handling when `GROQ_API_KEY` is missing, HTTP 429 rate limit errors translated to `RuntimeError` for Celery worker retries, sync generate timeout handling.
+    - Risk Investigator: `InvestigationAgent` safety budget honoring `max_tool_calls` limit without unbounded looping.
+    - Connectors Matrix: Comprehensive configuration matrix across 10 providers (Slack, Jira, Linear, Gmail, Google Calendar, Google Drive, Google Meet, Recall, Speech-to-Text, Email), verifying `is_configured` true when valid credentials are provided and false when initialized empty.
+    - Connector Failure Modes: Verification that credential and delivery failures raise `ConnectorDeliveryError` across Slack (ok=False), Jira (HTTP 500), Linear (HTTP 401).
+    - Google OAuth Flow: URL construction with client ID, state, scopes, offline access, and consent prompt; code-for-token exchange; token refresh; revoked token detection (`invalid_grant` translated to `ValueError`); profile retrieval.
+    - SSRF Guard Protection (CRITICAL #7): Standard IP check blocking loopback IPv4/IPv6, RFC-1918 Class A/B/C private networks, AWS/GCP/Azure link-local cloud metadata (`169.254.169.254`), IPv6 link-local (`fe80::/10`) and unique local (`fc00::/7`), unspecified (`0.0.0.0`), and carrier-grade NAT (`100.64.0.0/10`). Legitimate public IPs permitted. Blocking of cloud metadata hostnames (`metadata.google.internal`, `169.254.169.254`, `metadata.google.com`, `instance-data.ec2.internal`). DNS rebinding attacks resolving to private networks safely blocked via `socket.getaddrinfo`. Empty and malformed URLs rejected with HTTP 400.
+    - Secret Envelope Encryption (CRITICAL #8): Fernet symmetric encryption and decryption roundtrip for API keys, bot tokens, and webhooks; idempotency preventing double encryption; corrupted/tampered ciphertext fallback; legacy plaintext backward compatibility; secret masking (`xoxb***mnop`) preserving short prefixes/suffixes while completely redacting credentials; `encrypt_config_dict` selectively encrypting sensitive keys (`api_key`, `bot_token`, etc.) while leaving non-sensitive keys readable; verification that raw secret tokens never leak in plaintext in logs.
+  - Bugs found in src/ (marked with `@pytest.mark.xfail(strict=True)` in test suite):
+    6. **BUG-6:** `src/connectors/ssrf_guard.py:49-56` does not check or unmap IPv4-mapped IPv6 addresses (`::ffff:x.x.x.x`). Python's `ipaddress.IPv6Address("::ffff:127.0.0.1")` returns `is_loopback=False` and `is_private=False`. Because `ssrf_guard.py` checks against `_BLOCKED_NETWORKS` without inspecting `addr.ipv4_mapped`, calls to `_is_blocked_ip("::ffff:127.0.0.1")` and `_is_blocked_ip("::ffff:169.254.169.254")` return `False`. This allows attackers to bypass SSRF protection to access loopback services and cloud instance metadata. Tested in `test_ssrf_is_blocked_ip_detects_ipv4_mapped_ipv6_addresses`.
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (76 passed, 4 xfailed each run = 228 passed, 12 xfailed).
+    - Total test suite: 257 passed, 9 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Inverted public IP check to `_is_blocked_ip is True` in `backend/tests/unit/test_ssrf_and_secrets.py:100` -> `test_ssrf_is_blocked_ip_allows_legitimate_public_ips` failed as expected (`AssertionError: Public IP 8.8.8.8 should NOT be blocked`).
+      2. Changed expected client_id to `wrong_client_id` in `backend/tests/unit/test_ai_and_connectors.py:289` -> `test_build_authorization_url_contains_state_and_scopes` failed as expected (`AssertionError`).
+      3. Changed decrypted secret comparison to `"corrupted_secret"` in `backend/tests/unit/test_ssrf_and_secrets.py:174` -> `test_secret_encryption_roundtrip` failed as expected (`AssertionError`).

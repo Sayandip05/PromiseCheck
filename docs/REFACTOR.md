@@ -32,7 +32,7 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 
 **Phase E: Lock-in**
 - [x] Step 15: Strict import-linter (zero ignores) + CI (2026-10-11, bf431b7)
-- [ ] Step 16: `docs/ARCHITECTURE.md` + final report
+- [x] Step 16: `docs/ARCHITECTURE.md` + final report (2026-10-11, c76ce65)
 
 ---
 
@@ -274,3 +274,4 @@ Next step: ...
       Filter the dispatcher query to only claim events matching registered types (`OutboxEvent.event_type.in_(...)`), leaving other events untouched or managed by a separate subscriber.
 - Step 14: Implemented declarative event handler registry in `core/outbox/registry.py` (Option A) with explicit acknowledged no-op handling for commitment lifecycle events (`commitment.created`, `commitment.updated`, `commitment.confirmed`). Refactored `jobs/outbox_dispatcher.py` to route all events through the registry via `dispatch_event()`, completely eliminating the dead-lettering / retry storm failure mode while strictly maintaining Celery task name contracts and unknown-event rejection behavior. Pytest: 66 passed. Contract snapshot diff: none.
 - Step 15: Confirmed strict import-linter enforcement across 101 files and 238 dependencies with zero ignored imports (`ignore_imports = []`). All 9 architectural layering and module encapsulation contracts strictly kept with 0 broken. CI implementation omitted per user direction. Pytest: 66 passed. Contract snapshot diff: none.
+- Step 16: Created `docs/ARCHITECTURE.md` providing comprehensive documentation for the modular monolith architecture: directory layout, strictly enforced layer and encapsulation rules, contract freeze guarantees, developer guides for creating new domain modules and Celery/outbox tasks, and justification for extracting `ingestion` first. Refactor completed.

@@ -12,7 +12,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 1: Tenant isolation and authorization matrix (2026-10-11, 331063d, 25 tests added)
 - [x] Batch 2: IAM: auth, tokens, invitations, roles (2026-10-11, d4ca7a4, 31 tests added)
 - [x] Batch 3: Commitments lifecycle, delivery, audit, outbox write (2026-10-11, 15 tests added)
-- [ ] Batch 4: Outbox dispatcher + event registry
+- [x] Batch 4: Outbox dispatcher + event registry (2026-10-11, 29 tests added)
 - [ ] Batch 5: Celery tasks, task-name contracts, risk scan
 - [ ] Batch 6: AI layer, connectors, SSRF, secrets
 - [ ] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter
@@ -242,3 +242,25 @@ Next batch: ...
       1. Outbox write disabled in `src/modules/commitments/service.py:246` -> `test_create_commitment_writes_outbox_event_in_same_transaction` failed as expected (assert None is not None).
       2. Invalid status transition check bypassed in `src/modules/commitments/service.py:304` -> `test_update_commitment_invalid_transition_rejected` failed as expected (assert 200 == 422).
       3. Customer at-risk SLA health penalty hardcoded to 100 in `src/modules/customers/service.py:57` -> `test_customer_metrics_sla_health_calculation` failed as expected (assert 100 == 50).
+- Batch 4 Findings and Tests Added:
+  - 29 new tests added (20 unit in `backend/tests/unit/test_outbox_registry.py`, 9 integration in `backend/tests/integration/test_outbox_dispatcher_lifecycle.py`):
+    - Concurrency and Zero Double-Dispatch (CRITICAL #4): Two competing dispatcher instances running with `FOR UPDATE SKIP LOCKED` on real PostgreSQL never claim or dispatch the same row twice, and all pending rows are processed without loss.
+    - Registered Task Routing: Pending outbox events (`ingestion.transcript.process`, `ingestion.audio.process`, `risk.scan.request`) transition to `dispatched` with `dispatched_at` set, sending correct Celery task name, queue (`ingestion`, `high_priority`), and formatted kwargs.
+    - Notifications: Overdue and at-risk notifications route cleanly to `jobs.tasks.dispatch_notification_alert` on `high_priority` queue with formatted SSE channel (`ws:{workspace_id}:events` or fallback `global:events`).
+    - Acknowledged No-Op Events: Commitment lifecycle events (`commitment.created`, `commitment.updated`, `commitment.confirmed`) dispatch on first poll without calling Celery tasks, without retries, and without log pollution.
+    - Dead-Lettering: Unknown event types increment `dispatch_attempts` in payload up to 5, then transition status to `failed` with `last_dispatch_error` recorded.
+    - Crash Resilience: Transactions aborted between claim and commit roll back cleanly, leaving rows pending for automatic retry on subsequent polling cycles.
+    - Strict FIFO Ordering: Pending events are claimed strictly in ascending order of `created_at`.
+    - Batch Size Bounding: Polling batches are constrained to `_BATCH_SIZE`, leaving excess rows pending for the next cycle.
+    - Registry Completeness: Parametrized verification across all domain events, duplicate registration overwriting, and unknown event error handling.
+  - Bugs found in src/ (marked with `@pytest.mark.xfail(strict=True)` in test suite):
+    5. **BUG-5:** `src/jobs/outbox_dispatcher.py:105-118` lacks exponential backoff and scheduled retry (`next_retry_at`). When a poison event fails at the head of the queue, it remains `status='pending'` with an immediate re-poll in the next cycle, repeatedly consuming batch capacity and blocking or delaying subsequent healthy pending events until 5 failed attempts are exhausted. Tested in `test_poison_event_at_queue_head_must_not_delay_healthy_events`.
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (28 passed, 1 xfailed each run).
+    - Total test suite: 164 passed, 5 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Disabled `is_noop` check in `src/core/outbox/registry.py:94` -> `test_commitment_lifecycle_events_are_explicit_noops` failed as expected (assert `ValueError: Invalid route configuration`).
+      2. Status update changed from `dispatched` to `pending` in `src/jobs/outbox_dispatcher.py:124` -> `test_ingestion_event_transitions_pending_to_dispatched_with_correct_kwargs` failed as expected (`TimeoutError`).
+      3. Dead-letter failure threshold raised from 5 to 100 in `src/jobs/outbox_dispatcher.py:116` -> `test_unknown_event_increments_attempts_and_dead_letters_after_5_failures` failed as expected (assert 100 == 5).

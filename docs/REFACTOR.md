@@ -24,7 +24,7 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 - [x] Step 9: Consolidate `delivery`, `risk`, `engineering` into `commitments` (2026-10-10)
 - [x] Step 10: Module-owned Celery tasks (task names preserved) (2026-10-11)
 - [x] Step 11: Public interface per module + cross-module import cleanup (2026-10-11, 58ac484)
-- [ ] Step 12: Normalize `schemas.py`
+- [x] Step 12: Normalize `schemas.py` (2026-10-11, 961b7da)
 
 **Phase D: Behaviour changes (GATED, need my written approval)**
 - [ ] Step 13: Investigate the outbox dispatcher `commitment.*` failure mode
@@ -243,3 +243,4 @@ Next step: ...
 - Baseline recorded at Step 0: `62 passed, 4 warnings in 13.18s`, alembic heads: `0003 (head)`
 - Alembic notice: `alembic check` against local SQLite fallback reports type/index dialect differences between Postgres UUID/DateTime and SQLite TEXT; production heads are pinned at `0003 (head)`. Contract freeze is guarded by `snapshot_contracts.py`.
 - Step 11: Exported clean public API interfaces (__all__) across all 7 domain modules (`iam`, `audit`, `integrations`, `commitments`, `customers`, `ingestion`, `notifications`). Redirected all cross-module imports to import directly from root module packages. Configured 7 protected module encapsulation contracts in `pyproject.toml`; `lint-imports` verified 9/9 contracts kept with 0 broken. Snapshot diff: none. Pytest: 62 passed.
+- Step 12: Extracted inline Pydantic request and response schemas from routers into dedicated `schemas.py` files for `audit`, `customers`, `ingestion`, `notifications`, `integrations`, and `commitments/{delivery,risk,tickets}`. Preserved schema model names and field types verbatim, guaranteeing 0 diff in OpenAPI contract snapshot. Pytest: 62 passed. Lint-imports: 9/9 contracts kept with 0 broken.

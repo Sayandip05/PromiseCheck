@@ -8,7 +8,6 @@ import uuid
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +17,16 @@ from core.logging import get_logger
 from core.redis import delete_key, get_value, publish_event, set_with_ttl
 from modules.iam import User, get_active_workspace_id, get_current_user
 from modules.integrations.models import WorkspaceIntegration
+from modules.integrations.schemas import (
+    CalendarSyncEventRequest,
+    ConnectIntegrationRequest,
+    GmailSendUpdateRequest,
+    GoogleAuthorizeResponse,
+    GoogleConnectTokenRequest,
+    IntegrationDTO,
+    TestIntegrationRequest,
+    TestIntegrationResponse,
+)
 
 from connectors.connector_interface import (
     ConnectorAuthenticationError,
@@ -113,74 +122,6 @@ DEFAULT_PROVIDERS = [
     },
 ]
 
-
-class IntegrationDTO(BaseModel):
-    """Third-party connector status."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    provider: str  # google_meet | jira | slack | linear | gmail | recall
-    name: str
-    connected: bool
-    statusText: str
-    lastSync: Optional[str] = None
-    workspaceId: Optional[str] = None
-    description: Optional[str] = None
-    channelOrScope: Optional[str] = None
-
-
-class ConnectIntegrationRequest(BaseModel):
-    """Payload to connect or update credentials for an external provider."""
-
-    model_config = ConfigDict(extra="allow")
-
-    api_key: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    webhook_url: Optional[str] = None
-    scope: Optional[str] = None
-    # Provider-specific credentials & preferences
-    domain: Optional[str] = None
-    email: Optional[str] = None
-    api_token: Optional[str] = None
-    bot_token: Optional[str] = None
-    channel: Optional[str] = None
-    region: Optional[str] = None
-    bot_name: Optional[str] = None
-    access_token: Optional[str] = None
-    project_key: Optional[str] = None
-    team_key: Optional[str] = None
-    notify_conflicts: Optional[bool] = True
-    notify_overdue: Optional[bool] = True
-    notify_new_promises: Optional[bool] = True
-
-
-class TestIntegrationRequest(BaseModel):
-    """Payload to test external provider connectivity."""
-
-    model_config = ConfigDict(extra="allow")
-
-    api_key: Optional[str] = None
-    domain: Optional[str] = None
-    email: Optional[str] = None
-    api_token: Optional[str] = None
-    webhook_url: Optional[str] = None
-    bot_token: Optional[str] = None
-    channel: Optional[str] = None
-    region: Optional[str] = None
-    access_token: Optional[str] = None
-    meeting_url: Optional[str] = None
-    message: Optional[str] = None
-
-
-class TestIntegrationResponse(BaseModel):
-    """Result of external provider live connectivity test."""
-
-    success: bool
-    provider: str
-    message: str
-    details: Optional[dict[str, Any]] = None
 
 
 def instantiate_connector(provider: str, config: Optional[dict[str, Any]] = None):
@@ -562,31 +503,6 @@ async def disconnect_integration(
 # Google Integration (Gmail & Google Calendar) Endpoints
 # ==============================================================================
 
-class GoogleAuthorizeResponse(BaseModel):
-    authorization_url: str
-    redirect_uri: str
-    state: str
-
-
-class GoogleConnectTokenRequest(BaseModel):
-    access_token: str
-    refresh_token: Optional[str] = None
-    email: Optional[str] = None
-    expires_in: Optional[int] = 3600
-
-
-class CalendarSyncEventRequest(BaseModel):
-    commitment_id: Optional[str] = None
-    title: str
-    due_date_iso: str
-    description: Optional[str] = ""
-
-
-class GmailSendUpdateRequest(BaseModel):
-    to_email: str
-    subject: str
-    body: str
-    commitment_id: Optional[str] = None
 
 
 @router.get("/google/authorize", response_model=GoogleAuthorizeResponse)

@@ -1,35 +1,17 @@
 """Audit trail router with compliance tracking and timeline events."""
 
-from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from modules.audit.models import AuditEvent
+from modules.audit.schemas import AuditEventDTO
 from modules.iam import User, get_active_workspace_id, get_current_user
 
 router = APIRouter(prefix="/audit", tags=["Audit & Compliance"])
-
-
-class AuditEventDTO(BaseModel):
-    """Audit log entry DTO matching frontend activity and compliance views."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    workspace_id: str
-    action: str
-    target_type: str
-    target_id: str
-    description: str
-    source: str
-    timeAgo: str
-    created_at: datetime
-    payload: dict[str, Any] = {}
 
 
 @router.get("", response_model=list[AuditEventDTO])

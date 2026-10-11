@@ -1,26 +1,14 @@
 """Engineering module REST router (Jira/Linear tracker ticket mapping)."""
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
+from modules.commitments.tickets.schemas import TicketSnapshot
 from modules.commitments.tickets.service import EngineeringService
 from modules.iam import User, get_active_workspace_id, get_current_user
 
 router = APIRouter(prefix="/engineering", tags=["Engineering Trackers"])
-
-
-class TicketSnapshot(BaseModel):
-    """Normalized engineering issue record."""
-
-    id: str
-    tracker: str  # jira, linear, github
-    key: str
-    status: str
-    target_date: str | None = None
-    commitment_id: str | None = None
-    commitment_title: str | None = None
 
 
 @router.get("/tickets", response_model=list[TicketSnapshot])

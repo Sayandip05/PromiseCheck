@@ -4,40 +4,14 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
+from modules.commitments.delivery.schemas import DeliveryEvidenceResponse, VerifyDeliveryRequest
 from modules.commitments.delivery.service import DeliveryService
 from modules.iam import User, get_active_workspace_id, get_current_user
 
 router = APIRouter(prefix="/delivery", tags=["Delivery Verification"])
-
-
-class DeliveryEvidenceResponse(BaseModel):
-    """Evidence proving a customer commitment was fulfilled."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    commitment_id: str
-    commitment_title: str
-    customer_name: str
-    evidence_type: str  # release_notes, pr_merged, manual_signoff
-    evidence_title: str
-    verified_at: str
-    verified_by: Optional[str] = "Team Lead"
-    evidence_url: Optional[str] = ""
-
-
-class VerifyDeliveryRequest(BaseModel):
-    """Request payload to officially mark a commitment fulfilled with proof."""
-
-    commitment_id: uuid.UUID
-    evidence_type: str = "manual_signoff"  # release_notes | pr_merged | manual_signoff
-    evidence_title: str
-    evidence_url: Optional[str] = ""
-    notes: Optional[str] = ""
 
 
 @router.get("/evidence", response_model=list[DeliveryEvidenceResponse])

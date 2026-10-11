@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, Form, UploadFile
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import desc, select
 
@@ -14,6 +13,7 @@ from core.redis import publish_event, set_with_ttl
 from modules.audit import record_audit_event
 from modules.iam import User, get_active_workspace_id, get_current_user
 from modules.ingestion.models import IngestionJob
+from modules.ingestion.schemas import IngestJobResponse, UploadTranscriptRequest
 from modules.ingestion.service import IngestionService
 from modules.ingestion.tasks import process_audio_ingestion, process_transcript_ingestion
 from core.outbox.service import create_outbox_event
@@ -22,25 +22,6 @@ router = APIRouter(prefix="/ingestion", tags=["Ingestion & Capture"])
 
 AUDIO_UPLOAD_DIR = Path("/tmp/promisecheck_audio_uploads")
 AUDIO_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-
-class UploadTranscriptRequest(BaseModel):
-    """Payload to upload and parse a meeting transcript."""
-
-    customer: str = "Acme"
-    meeting_title: str = "Customer Sync & Feature Review"
-    transcript_text: str = ""
-    source_type: str = "upload"  # meet, zoom, upload, slack
-
-
-class IngestJobResponse(BaseModel):
-    """Ingestion job execution result."""
-
-    job_id: str
-    source_type: str
-    status: str
-    candidates_extracted: int
-    candidates: list[dict[str, Any]] = []
 
 
 @router.get("/jobs", response_model=list[IngestJobResponse])

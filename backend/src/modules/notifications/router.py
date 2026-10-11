@@ -2,35 +2,14 @@
 
 from typing import Optional
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from modules.iam import User, get_active_workspace_id, get_current_user
+from modules.notifications.schemas import NotificationAlert, SendNotificationRequest
 from modules.notifications.service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["Notifications & Alerts"])
-
-
-class NotificationAlert(BaseModel):
-    """Internal Slack/Email delivery alert."""
-
-    id: str
-    commitment_id: str
-    commitment_title: str
-    channel: str  # slack, email
-    recipient: str
-    status: str  # pending_approval, sent, scheduled
-    alert_message: str
-
-
-class SendNotificationRequest(BaseModel):
-    """Request payload to dispatch an alert."""
-
-    commitment_id: Optional[str] = None
-    channel: str = "slack"  # slack | email
-    recipient: Optional[str] = None
-    message: str = ""
 
 
 @router.get("", response_model=list[NotificationAlert])

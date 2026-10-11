@@ -4,39 +4,14 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response, status
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
+from modules.customers.schemas import CustomerCreateRequest, CustomerDTO
 from modules.customers.service import CustomerService
 from modules.iam import User, get_active_workspace_id, get_current_user
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
-
-
-class CustomerDTO(BaseModel):
-    """Customer account profile matching frontend ACCOUNTS schema."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    name: str
-    status: str  # on-track | at-risk | review | completed
-    statusColor: str
-    activePromises: int
-    healthScore: int
-    recentPromise: str
-    dueDate: str
-    owner: str
-
-
-class CustomerCreateRequest(BaseModel):
-    """Payload to add a new customer account."""
-
-    name: str
-    owner: Optional[str] = "Account Manager"
-    recent_promise: Optional[str] = ""
-    due_date: Optional[str] = ""
 
 
 @router.get("", response_model=list[CustomerDTO])

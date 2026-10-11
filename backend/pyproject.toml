@@ -102,6 +102,7 @@ type = "protected"
 protected_modules = [
     "modules.audit.models",
     "modules.audit.service",
+    "modules.audit.schemas",
 ]
 allowed_importers = [
     "modules.audit",
@@ -113,6 +114,7 @@ type = "protected"
 protected_modules = [
     "modules.integrations.models",
     "modules.integrations.service",
+    "modules.integrations.schemas",
 ]
 allowed_importers = [
     "modules.integrations",
@@ -124,6 +126,7 @@ type = "protected"
 protected_modules = [
     "modules.customers.models",
     "modules.customers.service",
+    "modules.customers.schemas",
 ]
 allowed_importers = [
     "modules.customers",
@@ -135,6 +138,7 @@ type = "protected"
 protected_modules = [
     "modules.notifications.service",
     "modules.notifications.tasks",
+    "modules.notifications.schemas",
 ]
 allowed_importers = [
     "modules.notifications",
@@ -147,6 +151,7 @@ protected_modules = [
     "modules.ingestion.models",
     "modules.ingestion.service",
     "modules.ingestion.tasks",
+    "modules.ingestion.schemas",
 ]
 allowed_importers = [
     "modules.ingestion",

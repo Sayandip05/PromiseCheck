@@ -27,7 +27,7 @@ Mark `[x]` and add `(date, commit hash)` after each step. Resume from the first 
 - [x] Step 12: Normalize `schemas.py` (2026-10-11, 961b7da)
 
 **Phase D: Behaviour changes (GATED, need my written approval)**
-- [ ] Step 13: Investigate the outbox dispatcher `commitment.*` failure mode
+- [x] Step 13: Investigate the outbox dispatcher `commitment.*` failure mode (2026-10-11, dd3d47d)
 - [ ] Step 14: Event handler registry + notifications as subscriber
 
 **Phase E: Lock-in**
@@ -244,3 +244,31 @@ Next step: ...
 - Alembic notice: `alembic check` against local SQLite fallback reports type/index dialect differences between Postgres UUID/DateTime and SQLite TEXT; production heads are pinned at `0003 (head)`. Contract freeze is guarded by `snapshot_contracts.py`.
 - Step 11: Exported clean public API interfaces (__all__) across all 7 domain modules (`iam`, `audit`, `integrations`, `commitments`, `customers`, `ingestion`, `notifications`). Redirected all cross-module imports to import directly from root module packages. Configured 7 protected module encapsulation contracts in `pyproject.toml`; `lint-imports` verified 9/9 contracts kept with 0 broken. Snapshot diff: none. Pytest: 62 passed.
 - Step 12: Extracted inline Pydantic request and response schemas from routers into dedicated `schemas.py` files for `audit`, `customers`, `ingestion`, `notifications`, `integrations`, and `commitments/{delivery,risk,tickets}`. Preserved schema model names and field types verbatim, guaranteeing 0 diff in OpenAPI contract snapshot. Pytest: 62 passed. Lint-imports: 9/9 contracts kept with 0 broken.
+- Step 13 Investigation Findings (GATED):
+  - **Evidence of Failure Mode**:
+    1. `CommitmentService` in `modules/commitments/service.py` inserts outbox events:
+       - `commitment.created` (line 246)
+       - `commitment.updated` (line 337)
+       - `commitment.confirmed` (line 388)
+       with initial `status = "pending"`.
+    2. In `jobs/outbox_dispatcher.py` (`run_dispatcher` lines 80-92), the poller actively queries:
+       `SELECT * FROM outbox_events WHERE status = 'pending' ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED`.
+       Therefore, all `commitment.*` rows are picked up by the dispatcher.
+    3. In `_dispatch_to_celery` (`jobs/outbox_dispatcher.py:199-205`), the handler table only handles `ingestion.*`, `risk.scan.request`, and `notification.*`. It has no route for `commitment.*`, falling through to:
+       `raise ValueError(f"No Celery handler for event_type '{event_type}'")`.
+    4. **Retry Storm & Dead-Lettering**:
+       In `run_dispatcher()` (lines 105-117), the exception is caught, incrementing `dispatch_attempts` on `row.payload`. Because `attempts < 5`, the row stays `status = "pending"`. The batch was non-empty, so the loop sleeps only `_BUSY_SLEEP = 0.1s`. In 100ms, the next cycle re-fetches the same pending row at the front of `order_by(created_at)`.
+       Within ~0.5 seconds (5 cycles), `attempts >= 5` is reached, and the dispatcher marks `status = "failed"` (line 132).
+    5. **Impact**:
+       - 100% of commitment outbox events are dead-lettered as `failed`.
+       - 5 DB transactions with row-level locks executed per event within 500ms (retry storm).
+       - Head-of-line blocking delaying other legitimate pending events (`ingestion`, `notification`).
+       - Sentry/log pollution with false error reports.
+  - **Reproduction Test**: Added `backend/tests/unit/test_outbox_dispatcher_trap.py::test_commitment_created_event_should_dispatch_without_error`, which reproduces the `ValueError` failure.
+  - **Proposed Fix Options for Step 14**:
+    - **Option A (Recommended - Declarative Event Registry with No-Op/Ack Handlers)**:
+      Create `core/outbox/registry.py`. Modules register event handlers or Celery task routes. Events published without Celery consumers (`commitment.created`, `commitment.updated`, `commitment.confirmed`) are registered as acknowledged/no-op handlers (optionally logging or publishing to Redis stream/PubSub), allowing them to cleanly transition to `status = 'dispatched'` on first poll without retries. Unregistered events continue to fail and dead-letter after 5 attempts.
+    - **Option B (Domain Celery Task Subscribers)**:
+      Define a Celery task (e.g., `modules/notifications/tasks.py:handle_commitment_event` or `modules/commitments/tasks.py`) that consumes `commitment.*` events, and route them via `celery_app.send_task(...)`.
+    - **Option C (Filtered Polling Query)**:
+      Filter the dispatcher query to only claim events matching registered types (`OutboxEvent.event_type.in_(...)`), leaving other events untouched or managed by a separate subscriber.

@@ -200,7 +200,7 @@ def test_mask_secret_redacts_credentials_for_ui_and_telemetry():
     """mask_secret masks the middle of secrets while preserving short prefix/suffix."""
     long_secret = "tokn-1234567890-abcdefghijklmnop"
     masked = mask_secret(long_secret)
-    assert masked == "xoxb***mnop"
+    assert masked == "tokn***mnop"
     assert "1234567890" not in masked
 
     short_secret = "secret"

@@ -122,28 +122,133 @@ mindmap
 
 ## System overview
 
+### Backend Services & Feature Modules Flow
+
 ```mermaid
 flowchart TD
-    UI["React web application"] -->|"HTTPS and session"| API["FastAPI HTTP entrypoints"]
-    AUTH["OIDC identity provider"] -->|"Login callback"| API
-    SOURCES["Provider events"] --> IN["Authenticated event ingestion"]
-    API --> APP["Application services and access policy"]
-    IN --> DB[("PostgreSQL and transactional outbox")]
-    APP --> DB
-    DB --> DISPATCH["Outbox dispatcher"]
-    DISPATCH --> QUEUE["Redis task broker"]
-    QUEUE --> WORK["Celery workers"]
-    WORK --> APP
-    WORK --> CONN["Provider connectors"]
-    WORK --> AI["AI workflow and bounded agent"]
-    AI --> MODEL["LLM API"]
-    WORK --> STORE[("Private object storage")]
-    CONN --> PROVIDERS["Meet, Recall, Gmail, Jira, Linear, Slack"]
-    CLIENT["Authorized external AI client"] --> MCP["PromiseCheck MCP server"]
-    MCP --> APP
+    %% Clients & Transports
+    subgraph CLIENTS["1. Clients & Ingress Channels"]
+        WEB["React Web App<br/>(HTTPS / JWT / SSE)"]
+        MCP_CLI["External AI Clients<br/>(Claude / Cursor / MCP)"]
+        WEBHOOKS["External Webhooks<br/>(Slack / Jira / Google)"]
+    end
+
+    %% API Gateway & Core Layer
+    subgraph GATEWAY["2. FastAPI Gateway & Core Kernel"]
+        API["FastAPI HTTP Router<br/>(/api/v1)"]
+        MCP_SRV["FastMCP Server<br/>(Tools & Resources)"]
+        SSE_RT["Real-time SSE Gateway<br/>(/realtime/stream)"]
+        
+        subgraph MIDDLEWARE["Core Middleware & Guards"]
+            MW_AUTH["IAM & RBAC Guard<br/>(JWT / Tenant Isolation)"]
+            MW_RATE["Dual Rate Limiter<br/>(Sliding Window & Token Bucket)"]
+            MW_IDEMP["Idempotency Engine<br/>(Redis Cache / Replay Guard)"]
+            MW_SSRF["SSRF Guard<br/>(IP / CIDR / Rebinding Blocks)"]
+        end
+    end
+
+    %% Modular Feature Modules
+    subgraph MODULES["3. Domain Feature Modules (backend/src/modules)"]
+        MOD_IAM["IAM Module<br/>- Users & Workspaces<br/>- Memberships & RBAC Roles<br/>- JWT Rotation & Family Replay Guard"]
+        MOD_INGEST["Ingestion Module<br/>- Transcript Chunks<br/>- Audio File Streams<br/>- Ingestion Job Ledger"]
+        MOD_COMM["Commitments Module<br/>- Candidate Promises<br/>- Lifecycle & Revisions<br/>- Delivery Evidence Verification<br/>- SLA & Deadline Tracking"]
+        MOD_INTEG["Integrations Module<br/>- Slack, Jira, Linear<br/>- Google OAuth & Workspace<br/>- Envelope Encryption (AES-128)"]
+        MOD_NOTIF["Notifications Module<br/>- At-Risk & Overdue Alerts<br/>- Approval-Gated Messages<br/>- Multi-Channel Dispatch"]
+        MOD_CUST["Customers Module<br/>- Accounts & Domain Mapping<br/>- Accountable Owners"]
+        MOD_AUDIT["Audit Module<br/>- Append-Only Audit Trail"]
+    end
+
+    %% Persistence Layer
+    subgraph STORAGE["4. Persistence & Intent Durability"]
+        PG[("PostgreSQL 16 Database<br/>- Multi-tenant Schemas (workspace_id)<br/>- Transactional Outbox (outbox_events)<br/>- Row-Level Locking (SKIP LOCKED)")]
+        REDIS[("Redis 7 In-Memory Store<br/>- Task Broker & Result Backend<br/>- Sliding Window Rate Limits<br/>- SSE Pub/Sub & 24h Ring Buffer<br/>- Distributed Scheduler Locks")]
+    end
+
+    %% Asynchronous Processing Engine
+    subgraph ASYNC["5. Asynchronous Processing Engine (backend/src/jobs)"]
+        DISPATCHER["Outbox Dispatcher Daemon<br/>(Polls outbox_events with concurrency safety)"]
+        BEAT["Celery Beat Scheduler<br/>(Periodic SLA Scans & Token Cleanup)"]
+        
+        subgraph QUEUES["Multi-Priority Celery Queues"]
+            Q_HIGH["high_priority queue<br/>(Deadline risk scans & alerts)"]
+            Q_INGEST["ingestion queue<br/>(Audio STT & LLM extraction)"]
+            Q_DEFAULT["default queue<br/>(Periodic maintenance & cleanup)"]
+        end
+        
+        WORKERS["Celery Distributed Workers<br/>(Concurrent Task Executors)"]
+    end
+
+    %% Connectors & AI Engines
+    subgraph CONNECTORS_AI["6. External Connectors & AI Intelligence"]
+        AI_ENGINE["AI Processing Engine<br/>- Promise Extractor (LLM)<br/>- Risk Investigator (ReAct Agent)<br/>- Update Draft Generator"]
+        LLM_EXT["External LLM APIs<br/>(Anthropic Claude / OpenAI GPT-4)"]
+        STT_EXT["Speech-to-Text Service<br/>(Whisper Audio Transcriber)"]
+        SAAS_EXT["SaaS Providers<br/>(Slack Webhooks / Jira / Linear API)"]
+    end
+
+    %% Flows & Edges
+    WEB -->|"REST API Calls"| API
+    WEB -->|"SSE Subscriptions"| SSE_RT
+    MCP_CLI -->|"MCP Tool Invocations"| MCP_SRV
+    WEBHOOKS -->|"OAuth & Incoming Webhooks"| API
+
+    API --> MIDDLEWARE
+    MCP_SRV --> MIDDLEWARE
+    MIDDLEWARE --> MODULES
+
+    MOD_IAM --> PG
+    MOD_CUST --> PG
+    MOD_AUDIT --> PG
+    MOD_INGEST -->|"Atomically Write Job & Outbox Event"| PG
+    MOD_COMM -->|"Atomically Write Promise & Outbox Event"| PG
+    MOD_INTEG -->|"Persist Encrypted Secrets"| PG
+    MOD_NOTIF --> PG
+
+    MW_RATE -.->|"Rate limit state"| REDIS
+    MW_IDEMP -.->|"Cached responses"| REDIS
+    SSE_RT <-->|"Live Pub/Sub & 24h Ring Buffer"| REDIS
+
+    PG -->|"Poll pending events (FOR UPDATE SKIP LOCKED)"| DISPATCHER
+    DISPATCHER -->|"Enqueue Celery tasks"| QUEUES
+    BEAT -->|"Periodic deadline scan triggers"| Q_HIGH
+    
+    Q_HIGH --> WORKERS
+    Q_INGEST --> WORKERS
+    Q_DEFAULT --> WORKERS
+
+    WORKERS -->|"Transcribe audio"| STT_EXT
+    WORKERS -->|"Extract candidate promises"| AI_ENGINE
+    AI_ENGINE --> LLM_EXT
+    WORKERS -->|"Deliver notifications"| SAAS_EXT
+    WORKERS -->|"Publish realtime events"| REDIS
+    WORKERS -->|"Save results & audit records"| PG
 ```
 
-The scheduler inserts durable work for reconciliation, subscription renewal, deadlines, and retention. The web browser never receives provider refresh tokens or LLM API keys. The API accepts work quickly and exposes job status. HTTP and MCP share application services and authorization. Workers scale independently from request-serving processes.
+### End-to-End Service Flow Lifecycle
+
+1. **Ingress & Security Kernel**:
+   - Every inbound HTTP, SSE, or MCP call passes through `core/middleware.py`.
+   - **Dual Rate Limiter**: Auth endpoints are protected by an in-memory sliding window limiter (5 req/min); file ingestion uses token buckets (refill rate smoothing bursts).
+   - **Idempotency Guard**: Mutation endpoints check `Idempotency-Key` headers in Redis, returning cached responses for replayed requests and rejecting altered duplicate payloads with HTTP 422.
+   - **Tenant & SSRF Isolation**: Every query filters by `workspace_id` derived from verified JWT session claims. Outbound webhooks and MCP connector URLs are validated through `connectors/ssrf_guard.py` against private CIDRs, cloud metadata endpoints, and DNS rebinding attacks.
+
+2. **Domain Service Execution & Transactional Outbox**:
+   - Feature modules (`commitments`, `ingestion`, `integrations`, `iam`, `notifications`) encapsulate business logic behind service classes.
+   - When a transcript is uploaded or a promise is confirmed, domain records and a corresponding `OutboxEvent` are written inside the **exact same database transaction**.
+   - Zero background tasks are dispatched directly inside HTTP requests, guaranteeing that database rollbacks never emit phantom tasks and broker restarts never lose work.
+
+3. **Asynchronous Dispatch & Multi-Queue Workers**:
+   - `jobs/outbox_dispatcher.py` runs a background polling loop using `SELECT ... FOR UPDATE SKIP LOCKED` to prevent double-dispatch across concurrent replicas.
+   - Events are routed to dedicated Celery queues:
+     - `high_priority`: Time-critical deadline scans and SLA warning alerts.
+     - `ingestion`: Heavy audio transcription and LLM promise extraction.
+     - `default`: Background token rotation cleanup and database maintenance.
+   - Celery workers process jobs, invoke external AI/LLMs or SaaS connectors, persist results, and publish events to Redis Pub/Sub.
+
+4. **Real-time Synchronization & SSE Gateway**:
+   - Browser clients subscribe to `/api/v1/events/stream` via Server-Sent Events.
+   - Redis Pub/Sub broadcasts live updates across all API instances.
+   - A 24-hour Redis Stream ring buffer (`stream:ws:{id}:events`, capped at 1000 items) enables reconnecting clients to replay missed events using `Last-Event-ID`.
 
 ## Core modules
 

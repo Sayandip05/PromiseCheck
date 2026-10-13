@@ -16,7 +16,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 5: Celery tasks, task-name contracts, risk scan (2026-10-11, 17 tests added)
 - [x] Batch 6: AI layer, connectors, SSRF, secrets (2026-10-11, 80 tests added)
 - [x] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter (2026-10-13, 30 tests added)
-- [ ] Batch 8: Architecture, migration and contract guard tests
+- [x] Batch 8: Architecture, migration and contract guard tests (2026-10-13, 19 tests added)
 - [ ] Batch 9: End-to-end (real stack)
 - [ ] Batch 10: Quality gates, CI/Makefile target, docs/TESTING.md
 
@@ -321,3 +321,21 @@ Next batch: ...
       1. Mutated missing OAuth code check from 400 to 200 in `backend/tests/integration/test_integrations_and_mcp_lifecycle.py:71` -> `test_google_oauth_callback_missing_code_rejected` failed as expected (`assert 400 == 200`).
       2. Mutated empty transcript check from 422 to 200 in `backend/tests/integration/test_realtime_and_ingestion_lifecycle.py:129` -> `test_upload_empty_transcript_rejected` failed as expected (`assert 422 == 200`).
       3. Mutated idempotency replayed header from 'true' to 'false' in `backend/tests/integration/test_realtime_and_ingestion_lifecycle.py:279` -> `test_idempotency_retry_returns_cached_response` failed as expected (`AssertionError: assert 'true' == 'false'`).
+- Batch 8 Findings and Tests Added:
+  - 19 new contract guard tests added in `backend/tests/contracts/test_architecture_and_migration_guards.py`:
+    - Architecture Boundary Contracts: Programmatic execution of `lint-imports` ensuring 9 kept, 0 broken modular-monolith layering contracts.
+    - Contract Snapshot Freeze: Automated test verifying OpenAPI paths, Celery task registry, and table metadata match `docs/baseline` snapshots exactly with 0 diff (`snapshot_contracts.py --check`).
+    - Database Migration Roundtrip & Zero Schema Drift: On PostgreSQL, validates clean downgrade from head down to base (dropping all application tables), upgrade back to head (recreating all 14 application tables), and asserts zero missing tables between SQLAlchemy `Base.metadata` and the PostgreSQL schema.
+    - Route Coverage Guard: Reflects all 48 OpenAPI paths against `KNOWN_API_ROUTES`, ensuring any newly created endpoint without integration tests or cataloging fails CI immediately.
+    - Celery Task Completeness Guard: Validates all 5 registered Celery worker tasks have contracts, and prevents untracked worker tasks from silently deploying.
+    - Outbox Event Registry Completeness Guard: Validates all 8 registered outbox event types (`ingestion.transcript.process`, `ingestion.audio.process`, `risk.scan.request`, `notification.deadline.at_risk`, `notification.deadline.overdue`, `commitment.created`, `commitment.updated`, `commitment.confirmed`) have valid routes, queue mappings, and handlers/no-ops.
+  - Bugs found in src/: None in Batch 8.
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (19 passed each run = 57 passed in 5.89s).
+    - Total test suite: 306 passed, 12 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Removed `/healthz` from `KNOWN_API_ROUTES` in `backend/tests/contracts/test_architecture_and_migration_guards.py:165` -> `test_fastapi_route_coverage_guard` failed as expected (`AssertionError: New uncataloged routes detected: {'/healthz'}`).
+      2. Removed `jobs.tasks.process_audio_ingestion` from `EXPECTED_CELERY_TASKS` in `backend/tests/contracts/test_architecture_and_migration_guards.py:257` -> `test_celery_no_untracked_user_tasks_guard` failed as expected (`AssertionError: Untracked Celery user tasks detected: {'jobs.tasks.process_audio_ingestion'}`).
+      3. Added `non_existent_table_xyz` to `expected_tables` in `backend/tests/contracts/test_architecture_and_migration_guards.py:131` -> `test_alembic_postgres_migrations_upgrade_downgrade_roundtrip` failed as expected (`AssertionError: Missing tables after upgrade head: {'non_existent_table_xyz'}`).

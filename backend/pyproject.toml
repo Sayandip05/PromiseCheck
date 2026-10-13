@@ -60,6 +60,24 @@ markers = [
     "e2e: End-to-end full running stack tests",
 ]
 
+[tool.coverage.run]
+source = ["core", "modules", "jobs", "connectors", "ai", "api"]
+omit = [
+    "*/__init__.py",
+    "*/scripts/*",
+]
+
+[tool.coverage.report]
+fail_under = 65
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

@@ -18,7 +18,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter (2026-10-13, 30 tests added)
 - [x] Batch 8: Architecture, migration and contract guard tests (2026-10-13, 19 tests added)
 - [x] Batch 9: End-to-end (real stack) (2026-10-13, 9 tests added)
-- [ ] Batch 10: Quality gates, CI/Makefile target, docs/TESTING.md
+- [x] Batch 10: Quality gates, Makefile targets, coverage configuration, docs/TESTING.md (2026-10-13, quality gate complete)
 
 ## 1. Goal and non-goals
 
@@ -361,3 +361,37 @@ Next batch: ...
       1. In `test_e2e_journey_7_token_refresh_and_replay_detection`: mutated `replay_res.status_code == 401` to `200` -> failed as expected (`assert 401 == 200`).
       2. In `test_e2e_journey_4_two_tenants_parallel_isolation`: mutated `comm_b["id"] not in ids_a` to `comm_b["id"] in ids_a` -> failed as expected (`assert '...' in ['...']`).
       3. In `test_e2e_journey_8_integration_connect_and_notification`: mutated `send_res.status_code == 200` to `400` -> failed as expected (`assert 200 == 400`).
+- Batch 10 Findings and Quality Gates Finalization:
+  - Makefile targets created and verified:
+    - `make test-unit`: executes 160 pure unit tests in 2.3s.
+    - `make test-integration`: executes 155 integration tests in ~35s.
+    - `make test-e2e`: executes 9 full stack end-to-end journeys in 6.1s.
+    - `make test-all`: executes all 324 tests across all levels in ~80s.
+    - `make coverage`: collects full line coverage across all packages (achieved 71% overall).
+    - `make check`: runs lint-imports (9 kept, 0 broken) + snapshot freeze check (zero diff) + full test suite (311 passed, 13 strict xfail, 0 failed).
+    - `make lint-imports`: modular monolith boundary verification.
+    - `make contracts-check`: contract snapshot validation against `docs/baseline/`.
+  - Quality gates and coverage configuration:
+    - `backend/pyproject.toml` updated with `[tool.coverage.run]` (sources: `core`, `modules`, `jobs`, `connectors`, `ai`, `api`) and `[tool.coverage.report]` with `fail_under = 65` (against 71% achieved).
+    - CI workflow skipped per explicit operator directive ("forget about CI").
+  - Documentation:
+    - Created `docs/TESTING.md` providing comprehensive guidelines on the test pyramid, markers, make targets, database/client fixtures, model factories, step-by-step guides for adding unit and integration tests, tenant isolation standards, strict xfail bug logging policy, and modular boundary contracts.
+  - Final Suite Summary:
+    - Test Pyramid:
+      - Unit: 160 tests (156 passed, 4 xfailed)
+      - Integration: 155 tests (147 passed, 8 xfailed)
+      - E2E: 9 tests (8 passed, 1 xfailed)
+      - Total: 324 tests (311 passed, 13 strict xfailed, 0 failed)
+      - Pre-hardening baseline: 66 tests -> Post-hardening suite: 324 tests (+258 new high-leverage tests added)
+      - Baseline 66 tests status: 100% untouched and passing.
+    - Code Coverage Achieved:
+      - `core`: 85% (config: 95%, logging: 94%, metrics: 92%, middleware: 99%, outbox: 100%, rate_limiter: 81%, redis: 82%, secret_encryption: 90%)
+      - `ai`: 84% (client: 93%, promise_extractor: 80%, risk_investigator: 100%)
+      - `jobs`: 75% (outbox_dispatcher: 79%, risk tasks: 93%, iam tasks: 90%, ingestion tasks: 78%, notification tasks: 100%)
+      - `modules`: 74% (audit router: 87%, audit service: 89%, commitments router: 91%, risk router: 94%, delivery router: 95%, ingestion router: 89%, ingestion service: 85%, notifications router: 94%)
+      - `connectors`: 62% (ssrf_guard: 91%, google_auth: 89%, connector_interface: 80%, jira: 62%, linear: 55%, email: 51%, slack: 50%)
+      - Codebase Total: 71%
+    - Stability & Flakiness:
+      - Flakiness: 0% across 3 consecutive randomized runs.
+      - Total bugs documented and isolated: 9 real bugs (BUG-1 through BUG-9) marked as `@pytest.mark.xfail(strict=True)`.
+      - Production Code Integrity: `git diff --stat -- backend/src` remains 0 insertions, 0 deletions across all 10 batches.

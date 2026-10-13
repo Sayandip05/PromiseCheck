@@ -17,7 +17,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 6: AI layer, connectors, SSRF, secrets (2026-10-11, 80 tests added)
 - [x] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter (2026-10-13, 30 tests added)
 - [x] Batch 8: Architecture, migration and contract guard tests (2026-10-13, 19 tests added)
-- [ ] Batch 9: End-to-end (real stack)
+- [x] Batch 9: End-to-end (real stack) (2026-10-13, 9 tests added)
 - [ ] Batch 10: Quality gates, CI/Makefile target, docs/TESTING.md
 
 ## 1. Goal and non-goals
@@ -339,3 +339,25 @@ Next batch: ...
       1. Removed `/healthz` from `KNOWN_API_ROUTES` in `backend/tests/contracts/test_architecture_and_migration_guards.py:165` -> `test_fastapi_route_coverage_guard` failed as expected (`AssertionError: New uncataloged routes detected: {'/healthz'}`).
       2. Removed `jobs.tasks.process_audio_ingestion` from `EXPECTED_CELERY_TASKS` in `backend/tests/contracts/test_architecture_and_migration_guards.py:257` -> `test_celery_no_untracked_user_tasks_guard` failed as expected (`AssertionError: Untracked Celery user tasks detected: {'jobs.tasks.process_audio_ingestion'}`).
       3. Added `non_existent_table_xyz` to `expected_tables` in `backend/tests/contracts/test_architecture_and_migration_guards.py:131` -> `test_alembic_postgres_migrations_upgrade_downgrade_roundtrip` failed as expected (`AssertionError: Missing tables after upgrade head: {'non_existent_table_xyz'}`).
+- Batch 9 Findings and Tests Added:
+  - 9 new end-to-end tests added in `backend/tests/e2e/test_end_to_end_journeys.py` (8 passed, 1 strict xfailed):
+    - Full Stack Docker Compose Configuration: Verified `docker-compose.test.yml` with all 6 required services: `test_postgres`, `test_redis`, `test_api`, `test_worker`, `test_scheduler`, and `test_dispatcher` with unified networking, healthchecks, and environment configuration.
+    - Journey 1 (CRITICAL #10): Full user lifecycle from registration, workspace creation, transcript ingestion, outbox transaction, dispatcher claim and Celery dispatch, worker transcript processing, candidate commitment extraction, confirmation, delivery verification, and real-time SSE event publishing.
+    - Journey 1 (BUG-3 Guard): Strict xfail test documenting `POST /api/v1/delivery/verify` failing on PostgreSQL due to missing `workspace_id` column in delivery evidence table (`UndefinedColumnError`).
+    - Journey 2: Overdue commitment deadline scan (`scan_commitment_deadlines`) triggering outbox events, dispatcher relaying to Celery, and alert delivery to external Slack webhook mock.
+    - Journey 3: Audio ingestion happy path with streaming chunks, background job queueing, and mock Whisper STT transcription driving commitment extraction.
+    - Journey 4: Strict cross-tenant parallel isolation with two independent organizations executing concurrent commitment creation and verification workflows with zero data cross-talk.
+    - Journey 5: Resilience against downstream AI outages: LLM 503 outage causes graceful job failure state, and system seamlessly recovers once the upstream provider is restored.
+    - Journey 6: Worker restart resilience: pending outbox events remain safely persisted in the database across simulated process restarts and dispatch retries without data loss.
+    - Journey 7: Authentication security across real HTTP: token refresh rotation, and detection of refresh token replay triggering immediate revocation of the entire token family.
+    - Journey 8: Integration lifecycle and notification dispatch: connecting simulated Slack credentials and delivering channel alerts.
+  - Bugs found in src/: None new (preserved BUG-3 as strict xfail on PostgreSQL).
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (8 passed, 1 xfailed each run = 24 passed, 3 xfailed in 21.29s).
+    - Total test suite: 315 passed, 13 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. In `test_e2e_journey_7_token_refresh_and_replay_detection`: mutated `replay_res.status_code == 401` to `200` -> failed as expected (`assert 401 == 200`).
+      2. In `test_e2e_journey_4_two_tenants_parallel_isolation`: mutated `comm_b["id"] not in ids_a` to `comm_b["id"] in ids_a` -> failed as expected (`assert '...' in ['...']`).
+      3. In `test_e2e_journey_8_integration_connect_and_notification`: mutated `send_res.status_code == 200` to `400` -> failed as expected (`assert 200 == 400`).

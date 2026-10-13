@@ -1,4 +1,7 @@
 services:
+  # ============================================================================
+  # Isolated Ephemeral PostgreSQL Test Database
+  # ============================================================================
   test_postgres:
     image: postgres:16-alpine
     container_name: promisecheck_test_postgres
@@ -17,6 +20,9 @@ services:
       timeout: 2s
       retries: 10
 
+  # ============================================================================
+  # Isolated Ephemeral Redis Test Cache & Broker
+  # ============================================================================
   test_redis:
     image: redis:7-alpine
     container_name: promisecheck_test_redis
@@ -28,3 +34,94 @@ services:
       interval: 2s
       timeout: 2s
       retries: 10
+
+  # ============================================================================
+  # Test API Server (FastAPI with E2E Test Profile)
+  # ============================================================================
+  test_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: promisecheck_test_api
+    restart: "no"
+    ports:
+      - "8002:8000"
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: postgresql+asyncpg://test_user:test_password@test_postgres:5432/promisecheck_test
+      DATABASE_SYNC_URL: postgresql://test_user:test_password@test_postgres:5432/promisecheck_test
+      REDIS_URL: redis://test_redis:6379/15
+      PUBLIC_APP_URL: http://localhost:3000
+      API_BASE_URL: http://localhost:8002
+    depends_on:
+      test_postgres:
+        condition: service_healthy
+      test_redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Celery Background Execution Worker
+  # ============================================================================
+  test_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: promisecheck_test_worker
+    restart: "no"
+    command: ["celery", "-A", "jobs.celery_app.celery_app", "worker", "--loglevel=info", "-Q", "high_priority,default,ingestion", "-c", "2"]
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: postgresql+asyncpg://test_user:test_password@test_postgres:5432/promisecheck_test
+      DATABASE_SYNC_URL: postgresql://test_user:test_password@test_postgres:5432/promisecheck_test
+      REDIS_URL: redis://test_redis:6379/15
+    depends_on:
+      test_postgres:
+        condition: service_healthy
+      test_redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Celery Beat Scheduler
+  # ============================================================================
+  test_scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: promisecheck_test_scheduler
+    restart: "no"
+    command: ["celery", "-A", "jobs.celery_app.celery_app", "beat", "--loglevel=info"]
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: postgresql+asyncpg://test_user:test_password@test_postgres:5432/promisecheck_test
+      DATABASE_SYNC_URL: postgresql://test_user:test_password@test_postgres:5432/promisecheck_test
+      REDIS_URL: redis://test_redis:6379/15
+    depends_on:
+      test_postgres:
+        condition: service_healthy
+      test_redis:
+        condition: service_healthy
+
+  # ============================================================================
+  # Supervised Transactional Outbox Dispatcher
+  # ============================================================================
+  test_dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: promisecheck_test_dispatcher
+    restart: "no"
+    command: ["python", "-m", "jobs.outbox_dispatcher"]
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: postgresql+asyncpg://test_user:test_password@test_postgres:5432/promisecheck_test
+      DATABASE_SYNC_URL: postgresql://test_user:test_password@test_postgres:5432/promisecheck_test
+      REDIS_URL: redis://test_redis:6379/15
+    depends_on:
+      test_postgres:
+        condition: service_healthy
+      test_redis:
+        condition: service_healthy

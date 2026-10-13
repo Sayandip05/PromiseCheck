@@ -43,6 +43,7 @@ ENV/
 *.egg
 .pytest_cache/
 .ruff_cache/
+.grimp_cache/
 .coverage
 htmlcov/
 

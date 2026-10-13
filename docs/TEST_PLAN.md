@@ -15,7 +15,7 @@ Mark `[x]` with `(date, commit hash, tests added)`. Resume from the first unchec
 - [x] Batch 4: Outbox dispatcher + event registry (2026-10-11, 29 tests added)
 - [x] Batch 5: Celery tasks, task-name contracts, risk scan (2026-10-11, 17 tests added)
 - [x] Batch 6: AI layer, connectors, SSRF, secrets (2026-10-11, 80 tests added)
-- [ ] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter
+- [x] Batch 7: Integrations/OAuth, MCP, SSE/Redis, ingestion API, idempotency, rate limiter (2026-10-13, 30 tests added)
 - [ ] Batch 8: Architecture, migration and contract guard tests
 - [ ] Batch 9: End-to-end (real stack)
 - [ ] Batch 10: Quality gates, CI/Makefile target, docs/TESTING.md
@@ -300,3 +300,24 @@ Next batch: ...
       1. Inverted public IP check to `_is_blocked_ip is True` in `backend/tests/unit/test_ssrf_and_secrets.py:100` -> `test_ssrf_is_blocked_ip_allows_legitimate_public_ips` failed as expected (`AssertionError: Public IP 8.8.8.8 should NOT be blocked`).
       2. Changed expected client_id to `wrong_client_id` in `backend/tests/unit/test_ai_and_connectors.py:289` -> `test_build_authorization_url_contains_state_and_scopes` failed as expected (`AssertionError`).
       3. Changed decrypted secret comparison to `"corrupted_secret"` in `backend/tests/unit/test_ssrf_and_secrets.py:174` -> `test_secret_encryption_roundtrip` failed as expected (`AssertionError`).
+- Batch 7 Findings and Tests Added:
+  - 30 new integration tests added (19 in `backend/tests/integration/test_integrations_and_mcp_lifecycle.py`, 11 in `backend/tests/integration/test_realtime_and_ingestion_lifecycle.py`):
+    - Google OAuth & Integrations Lifecycle (CRITICAL #9): Authorization URL generation with tenant state and offline consent parameters; callback error handling; missing/corrupted state rejection; encrypted token persistence; Slack and Jira connection, testing, and disconnection lifecycle; cross-tenant integration isolation.
+    - Model Context Protocol (MCP) Gateway: Tools manifest reflection (`list_commitments`, `get_commitment_evidence`, `create_commitment`, `create_update_draft`); unknown tool 404; RBAC enforcement blocking Viewer role execution with 403; cross-tenant scoping ensuring tools execute strictly within caller's workspace.
+    - SSE Real-time Gateway: Unauthenticated 401 rejection; workspace channel segregation (`ws:{workspace_id}:events`); `/test-publish` access control and Redis Pub/Sub broadcasting; stream handshake with immediate connection event and clean disconnection without infinite generator leaks.
+    - Ingestion API: Empty/whitespace transcript 422 rejection; valid transcript ingestion creating `IngestionJob` and atomic same-transaction outbox event; audio file upload chunk streaming and background Celery task dispatch; oversized audio rejection (413 Payload Too Large); workspace isolation for ingestion job lists.
+    - Idempotency & Rate Limiting: Replayed identical payloads return cached responses with `Idempotent-Replayed: true` header; altered payloads with the same idempotency key are rejected with 422 Unprocessable Content; rate limiting returns 429 Too Many Requests with standard retry headers.
+    - System Resilience: Readiness probes return 503 on degraded services; unhandled internal exceptions return sanitized 500 error responses without stack trace leaks.
+  - Bugs found in src/ (marked with `@pytest.mark.xfail(strict=True)` in test suite):
+    7. **BUG-7:** `src/modules/integrations/router.py:529-570` does not validate issued OAuth state against Redis or session. `state` is stateless (`ws_id:nonce`), allowing an attacker to forge or replay state parameters to link accounts across sessions (CSRF vulnerability). Tested in `test_google_oauth_callback_rejects_replayed_or_forged_state`.
+    8. **BUG-8:** External Google OAuth consoles expect `/api/v1/operations/integrations/google/callback` as documented in `docs/REFACTOR.md` and `docs/TEST_AUDIT.md`, but the modular monolith refactor only mounted `/api/v1/integrations/google/callback`. Accessing the legacy path returns 404 Not Found. Tested in `test_google_oauth_callback_legacy_operations_route_alias_accessible`.
+    9. **BUG-9:** `src/api/transports/mcp/tools.py:35` calls `CommitmentService.list_commitments(db, ws_uuid, status=status, limit=limit, offset=offset)`, but the service method signature is `(db, workspace_id, status_filter, category_filter, search, page, page_size)`. This raises `TypeError`, causing MCP `list_commitments` tool execution to return `isError=True`. (Similar signature mismatches exist in `get_commitment_evidence_tool` and `create_update_draft_tool`). Tested in `test_mcp_call_list_commitments_scopes_to_caller_workspace`.
+  - Architecture and Stability Verification:
+    - 3-run consecutive stability check: 3/3 passed (27 passed, 3 xfailed each run = 81 passed, 9 xfailed in 32.57s).
+    - Total test suite: 287 passed, 12 xfailed, 0 failed.
+    - Architecture contracts: 9 kept, 0 broken (`lint-imports`).
+    - Contracts snapshot: PASSED (zero diff).
+    - Mutation sanity checks (3/3):
+      1. Mutated missing OAuth code check from 400 to 200 in `backend/tests/integration/test_integrations_and_mcp_lifecycle.py:71` -> `test_google_oauth_callback_missing_code_rejected` failed as expected (`assert 400 == 200`).
+      2. Mutated empty transcript check from 422 to 200 in `backend/tests/integration/test_realtime_and_ingestion_lifecycle.py:129` -> `test_upload_empty_transcript_rejected` failed as expected (`assert 422 == 200`).
+      3. Mutated idempotency replayed header from 'true' to 'false' in `backend/tests/integration/test_realtime_and_ingestion_lifecycle.py:279` -> `test_idempotency_retry_returns_cached_response` failed as expected (`AssertionError: assert 'true' == 'false'`).

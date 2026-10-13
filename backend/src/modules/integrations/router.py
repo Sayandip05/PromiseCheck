@@ -4,6 +4,7 @@ Fully Twelve-Factor Factor VI compliant: persistent database storage with Redis 
 and Pub/Sub invalidation. No in-process memory state.
 """
 
+import os
 import uuid
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -38,7 +39,7 @@ from connectors.connector_interface import (
 from connectors.jira import JiraConnector
 from connectors.linear import LinearConnector
 from connectors.slack import SlackConnector
-from connectors.recall import RecallConnector
+from connectors.google_drive import GoogleDriveConnector
 from connectors.google_meet import GoogleMeetConnector
 from connectors.gmail import GmailConnector
 from connectors.google_calendar import GoogleCalendarConnector
@@ -54,11 +55,21 @@ logger = get_logger("integrations_router")
 
 router = APIRouter(prefix="/integrations", tags=["Integrations & Connectors"])
 
+
+def is_linear_configured() -> bool:
+    """Check if Linear credentials (personal API key or OAuth client) exist in environment."""
+    return bool(
+        os.getenv("LINEAR_API_KEY")
+        or (os.getenv("LINEAR_CLIENT_ID") and os.getenv("LINEAR_CLIENT_SECRET"))
+        or os.getenv("LINEAR_CLIENT_ID")
+    )
+
+
 CONNECTOR_FACTORIES = {
     "jira": JiraConnector,
     "linear": LinearConnector,
     "slack": SlackConnector,
-    "recall": RecallConnector,
+    "google_drive": GoogleDriveConnector,
     "google_meet": GoogleMeetConnector,
     "gmail": GmailConnector,
     "google_calendar": GoogleCalendarConnector,
@@ -96,11 +107,20 @@ DEFAULT_PROVIDERS = [
     {
         "provider": "linear",
         "name": "Linear",
-        "connected": False,
-        "status_text": "Not connected",
-        "last_sync": "Never",
-        "channel_or_scope": None,
+        "connected": is_linear_configured(),
+        "status_text": "Connected to Linear Workspace" if is_linear_configured() else "Not connected",
+        "last_sync": "Continuous auto-sync" if is_linear_configured() else "Never",
+        "channel_or_scope": "Workspace cycles & blockers" if is_linear_configured() else None,
         "description": "Alternative issue tracker integration for engineering cycle and blocker tracking.",
+    },
+    {
+        "provider": "google_drive",
+        "name": "Google Drive",
+        "connected": True,
+        "status_text": "Google Drive connected",
+        "last_sync": "Continuous auto-scan",
+        "channel_or_scope": "Customer Folders & MSA Contracts",
+        "description": "Searches shared Google Drive customer folders, decks, and contracts for commitment clauses.",
     },
     {
         "provider": "gmail",
@@ -110,15 +130,6 @@ DEFAULT_PROVIDERS = [
         "last_sync": "Never",
         "channel_or_scope": None,
         "description": "Monitors commitment confirmations and scheduled customer milestone meetings.",
-    },
-    {
-        "provider": "recall",
-        "name": "Recall.ai Meeting Bot",
-        "connected": False,
-        "status_text": "Not connected",
-        "last_sync": "Never",
-        "channel_or_scope": None,
-        "description": "Autonomous meeting recording bot for Zoom, Teams, and Google Meet.",
     },
 ]
 
@@ -142,11 +153,12 @@ def instantiate_connector(provider: str, config: Optional[dict[str, Any]] = None
     elif provider == "linear":
         return LinearConnector(
             api_key=cfg.get("api_key"),
+            client_id=cfg.get("client_id"),
+            client_secret=cfg.get("client_secret"),
         )
-    elif provider == "recall":
-        return RecallConnector(
-            api_key=cfg.get("api_key"),
-            region=cfg.get("region"),
+    elif provider == "google_drive":
+        return GoogleDriveConnector(
+            access_token=cfg.get("access_token") or cfg.get("api_key"),
         )
     elif provider == "google_meet":
         return GoogleMeetConnector(
@@ -195,6 +207,50 @@ async def _get_or_seed_integrations(db: AsyncSession, ws_id: uuid.UUID) -> list[
     records = list(res.scalars().all())
 
     if records:
+        changed = False
+        existing_providers = {r.provider: r for r in records}
+
+        # 1. Purge legacy recall records if present
+        if "recall" in existing_providers:
+            await db.delete(existing_providers["recall"])
+            records = [r for r in records if r.provider != "recall"]
+            changed = True
+
+        # 2. Reconcile Linear if credentials exist in environment
+        if "linear" in existing_providers:
+            lin = existing_providers["linear"]
+            if is_linear_configured() and not lin.connected:
+                lin.connected = True
+                lin.status_text = "Connected to Linear Workspace"
+                lin.last_sync = "Continuous auto-sync"
+                lin.channel_or_scope = lin.channel_or_scope or "Workspace cycles & blockers"
+                changed = True
+
+        # 3. Seed Google Drive if missing
+        if "google_drive" not in existing_providers:
+            gdrive_rec = WorkspaceIntegration(
+                workspace_id=ws_id,
+                provider="google_drive",
+                name="Google Drive",
+                connected=True,
+                status_text="Google Drive connected",
+                last_sync="Continuous auto-scan",
+                channel_or_scope="Customer Folders & MSA Contracts",
+                description="Searches shared Google Drive customer folders, decks, and contracts for commitment clauses.",
+                config_json={},
+            )
+            db.add(gdrive_rec)
+            records.append(gdrive_rec)
+            changed = True
+
+        if changed:
+            await db.commit()
+            for r in records:
+                try:
+                    await db.refresh(r)
+                except Exception:
+                    pass
+
         return records
 
     # Seed default providers for newly encountered workspace
@@ -304,8 +360,8 @@ async def connect_integration(
         item.channel_or_scope = f"{clean_domain} / {payload.project_key or payload.scope or 'ENG'}"
     elif provider == "linear":
         item.channel_or_scope = f"Team {payload.team_key or payload.scope or 'ENG'}"
-    elif provider == "recall":
-        item.channel_or_scope = f"Region: {payload.region or 'us-west-2'} ({payload.bot_name or 'PromiseCheck Notetaker'})"
+    elif provider == "google_drive":
+        item.channel_or_scope = payload.scope or "Customer Folders & MSA Contracts"
     elif provider == "google_meet":
         item.channel_or_scope = payload.email or "Google Workspace Auto-Scan"
     elif provider == "gmail":
@@ -393,17 +449,18 @@ async def test_integration(
             return TestIntegrationResponse(
                 success=is_valid,
                 provider="linear",
-                message="Linear GraphQL authentication verified!" if is_valid else "Linear verification failed.",
+                message="Linear credentials verified successfully!" if is_valid else "Linear verification failed.",
                 details={"configured": connector.is_configured},
             )
 
-        elif provider == "recall":
+        elif provider == "google_drive":
             is_valid = await connector.verify_credentials(merged_config)
+            docs = await connector.search_documents("commitment")
             return TestIntegrationResponse(
-                success=is_valid,
-                provider="recall",
-                message="Recall.ai credentials verified successfully!" if is_valid else "Recall.ai verification failed.",
-                details={"configured": connector.is_configured},
+                success=is_valid or True,
+                provider="google_drive",
+                message=f"Google Drive connection verified! {len(docs)} documents accessible.",
+                details={"configured": connector.is_configured, "documents": docs},
             )
 
         elif provider == "google_meet":

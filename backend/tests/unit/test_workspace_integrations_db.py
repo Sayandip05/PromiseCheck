@@ -31,7 +31,7 @@ def test_list_integrations_seeds_default_database_records(client: TestClient):
     assert len(data) >= 6
 
     providers = {item["provider"] for item in data}
-    expected = {"google_meet", "jira", "slack", "linear", "gmail", "recall"}
+    expected = {"google_meet", "jira", "slack", "linear", "gmail", "google_drive"}
     assert expected.issubset(providers)
 
     # Verify field schema conforms to IntegrationDTO
@@ -97,7 +97,7 @@ def test_unknown_provider_returns_404(client: TestClient):
 
 
 def test_test_integration_endpoints_for_all_providers(client: TestClient):
-    """Verify POST /api/v1/integrations/{provider}/test works across all 6 integrations."""
+    """Verify POST /api/v1/integrations/{provider}/test works across all standard integrations."""
     # 1. Slack test
     slack_resp = client.post(
         "/api/v1/integrations/slack/test",
@@ -123,13 +123,13 @@ def test_test_integration_endpoints_for_all_providers(client: TestClient):
     assert linear_resp.status_code == 200
     assert linear_resp.json()["provider"] == "linear"
 
-    # 4. Recall.ai test
-    recall_resp = client.post(
-        "/api/v1/integrations/recall/test",
-        json={"region": "us-west-2", "bot_name": "Test Bot", "meeting_url": "https://meet.google.com/xyz-abc"},
+    # 4. Google Drive test
+    drive_resp = client.post(
+        "/api/v1/integrations/google_drive/test",
+        json={"access_token": "ya29.fake-token"},
     )
-    assert recall_resp.status_code == 200
-    assert recall_resp.json()["provider"] == "recall"
+    assert drive_resp.status_code == 200
+    assert drive_resp.json()["provider"] == "google_drive"
 
     # 5. Google Meet test
     meet_resp = client.post(

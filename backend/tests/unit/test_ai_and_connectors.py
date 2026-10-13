@@ -36,7 +36,6 @@ from connectors.google_drive import GoogleDriveConnector
 from connectors.google_meet import GoogleMeetConnector
 from connectors.jira import JiraConnector
 from connectors.linear import LinearConnector
-from connectors.recall import RecallConnector
 from connectors.slack import SlackConnector
 from connectors.speech_to_text import SpeechToTextConnector
 
@@ -204,11 +203,11 @@ async def test_risk_investigator_safety_budget():
         (SlackConnector, {"bot_token": "xoxb-fake"}),
         (JiraConnector, {"domain": "acme.atlassian.net", "email": "a@b.com", "api_token": "tok"}),
         (LinearConnector, {"api_key": "lin_fake"}),
+        (LinearConnector, {"client_id": "d4168e7f831f", "client_secret": "c1f7aa811330"}),
         (GmailConnector, {"access_token": "ya29.fake"}),
         (GoogleCalendarConnector, {"access_token": "ya29.fake"}),
         (GoogleDriveConnector, {"access_token": "ya29.fake"}),
         (GoogleMeetConnector, {"access_token": "ya29.fake"}),
-        (RecallConnector, {"api_key": "rec_fake"}),
         (SpeechToTextConnector, {"api_key": "dg_fake"}),
         (EmailConnector, {"api_key": "resend_fake_key"}),
     ],
@@ -229,7 +228,6 @@ def test_all_connectors_report_configured_when_config_present(connector_cls, con
         GoogleCalendarConnector,
         GoogleDriveConnector,
         GoogleMeetConnector,
-        RecallConnector,
         SpeechToTextConnector,
         EmailConnector,
     ],

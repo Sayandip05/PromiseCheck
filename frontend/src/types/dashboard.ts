@@ -63,7 +63,7 @@ export interface RecentActivityItem {
 
 export interface Integration {
   id: string;
-  provider: 'google_meet' | 'jira' | 'slack' | 'linear' | 'gmail' | 'recall';
+  provider: 'google_meet' | 'jira' | 'slack' | 'linear' | 'gmail' | 'google_drive';
   name: string;
   connected: boolean;
   statusText: string;

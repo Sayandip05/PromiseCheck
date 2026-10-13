@@ -17,7 +17,7 @@ interface IntegrationsViewProps {
   onConfigureGoogle?: () => void;
   onConfigureJira?: () => void;
   onConfigureLinear?: () => void;
-  onConfigureRecall?: () => void;
+  onConfigureGoogleDrive?: () => void;
   onConfigureGoogleMeet?: () => void;
   onOpenMobileMenu: () => void;
 }
@@ -29,7 +29,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
   onConfigureGoogle,
   onConfigureJira,
   onConfigureLinear,
-  onConfigureRecall,
+  onConfigureGoogleDrive,
   onConfigureGoogleMeet,
   onOpenMobileMenu,
 }) => {
@@ -50,8 +50,8 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
       case 'linear':
         onConfigureLinear?.();
         break;
-      case 'recall':
-        onConfigureRecall?.();
+      case 'google_drive':
+        onConfigureGoogleDrive?.();
         break;
       case 'google_meet':
         onConfigureGoogleMeet?.();

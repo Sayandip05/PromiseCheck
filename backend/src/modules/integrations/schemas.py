@@ -11,7 +11,7 @@ class IntegrationDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    provider: str  # google_meet | jira | slack | linear | gmail | recall
+    provider: str  # google_meet | jira | slack | linear | gmail | google_drive
     name: str
     connected: bool
     statusText: str

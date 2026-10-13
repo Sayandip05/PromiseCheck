@@ -17,7 +17,7 @@ import { SlackIntegrationModal } from './components/dashboard/SlackIntegrationMo
 import { GoogleIntegrationModal } from './components/dashboard/GoogleIntegrationModal';
 import { JiraIntegrationModal } from './components/dashboard/JiraIntegrationModal';
 import { LinearIntegrationModal } from './components/dashboard/LinearIntegrationModal';
-import { RecallIntegrationModal } from './components/dashboard/RecallIntegrationModal';
+import { GoogleDriveIntegrationModal } from './components/dashboard/GoogleDriveIntegrationModal';
 import { GoogleMeetModal } from './components/dashboard/GoogleMeetModal';
 
 // Landing Page Components (accessible via toggle)
@@ -81,7 +81,7 @@ export default function App() {
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
   const [isLinearModalOpen, setIsLinearModalOpen] = useState(false);
-  const [isRecallModalOpen, setIsRecallModalOpen] = useState(false);
+  const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
   const [isGoogleMeetModalOpen, setIsGoogleMeetModalOpen] = useState(false);
 
   // Full application theme state (white / black)
@@ -497,7 +497,7 @@ export default function App() {
                 onConfigureGoogle={() => setIsGoogleModalOpen(true)}
                 onConfigureJira={() => setIsJiraModalOpen(true)}
                 onConfigureLinear={() => setIsLinearModalOpen(true)}
-                onConfigureRecall={() => setIsRecallModalOpen(true)}
+                onConfigureGoogleDrive={() => setIsGoogleDriveModalOpen(true)}
                 onConfigureGoogleMeet={() => setIsGoogleMeetModalOpen(true)}
                 onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
               />
@@ -581,9 +581,9 @@ export default function App() {
         onIntegrationUpdated={refreshData}
       />
 
-      <RecallIntegrationModal
-        isOpen={isRecallModalOpen}
-        onClose={() => setIsRecallModalOpen(false)}
+      <GoogleDriveIntegrationModal
+        isOpen={isGoogleDriveModalOpen}
+        onClose={() => setIsGoogleDriveModalOpen(false)}
         workspace={workspace}
         onIntegrationUpdated={refreshData}
       />

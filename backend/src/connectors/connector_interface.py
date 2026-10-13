@@ -2,7 +2,7 @@
 
 FEATURE PURPOSE:
 Defines the standard abstract contract and domain exceptions for all external
-third-party integrations (Slack, Jira, Linear, Google Meet, Recall, Gmail, Calendar).
+third-party integrations (Slack, Jira, Linear, Google Meet, Google Drive, Gmail, Calendar).
 
 NAMING CONVENTION:
 This module is named `connector_interface.py` to make its feature role obvious

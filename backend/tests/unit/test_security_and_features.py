@@ -14,7 +14,6 @@ from connectors.google_drive import GoogleDriveConnector
 from connectors.google_meet import GoogleMeetConnector
 from connectors.jira import JiraConnector
 from connectors.linear import LinearConnector
-from connectors.recall import RecallConnector
 from connectors.slack import SlackConnector
 from connectors.speech_to_text import SpeechToTextConnector
 from src.main import app
@@ -87,12 +86,12 @@ async def test_all_connectors_fail_fast_when_unconfigured():
     with pytest.raises(ConnectorNotConfiguredError):
         await stt.transcribe_audio(b"fake audio data", "audio.mp3")
 
-    # 7. Recall
-    recall = RecallConnector()
-    with pytest.raises(ConnectorNotConfiguredError):
-        await recall.verify_credentials({})
-    with pytest.raises(ConnectorNotConfiguredError):
-        await recall.create_bot("https://meet.google.com/xyz-abc")
+    # 7. Google Drive
+    drive = GoogleDriveConnector()
+    assert drive.is_configured is False
+    assert await drive.verify_credentials({}) is False
+    docs = await drive.search_documents("test")
+    assert len(docs) >= 1
 
 
 

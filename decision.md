@@ -20,6 +20,9 @@ This document records the foundational architectural decisions established in th
 | **ADR-009** | Dual Redis Role: Ephemeral Pub/Sub & 24h Stream Ring Buffer | Realtime Gateway | Accepted | 2026-10-08 |
 | **ADR-010** | Human-Friendly API Error Explanations | Developer & User Experience | Accepted | 2026-10-09 |
 | **ADR-011** | Environment-Driven Dynamic Origin & Base URL Discovery | Infrastructure & Deployment | Accepted | 2026-10-10 |
+| **ADR-012** | Automated Architecture Boundary & Contract Freeze Enforcement | Architecture Governance | Accepted | 2026-10-13 |
+| **ADR-013** | Configurable Host Port Mapping for Containerized PostgreSQL | Local Infrastructure | Accepted | 2026-10-13 |
+| **ADR-014** | Repository Workspace Hygiene & Removal of Ad-Hoc Artifacts | Codebase Standards | Accepted | 2026-10-14 |
 
 ---
 
@@ -124,3 +127,32 @@ This document records the foundational architectural decisions established in th
   - Backend uses `settings.API_BASE_URL` and `settings.PUBLIC_APP_URL` configured via environment variables.
   - Frontend (`frontend/src/lib/api.ts` and `frontend/src/hooks/useRealtimeEvents.ts`) auto-detects browser origins dynamically (`window.location.origin/api/v1`) when non-localhost hosts are detected.
 - **Consequence:** Seamless multi-environment compatibility across local development, Docker Compose, staging, and production domains.
+
+---
+
+### ADR-012: Automated Architecture Boundary & Contract Freeze Enforcement
+- **Context:** As the modular monolith expands across multiple features and contributors, implicit dependencies (e.g. bypassing a domain service to query sibling models directly) and silent API/task contract drift can re-introduce tight coupling and break external consumers.
+- **Decision:**
+  - Enforce programmatic architecture boundaries using `import-linter` contracts configured in `backend/pyproject.toml` (`Layered Architecture`, `No cycles between modules`, `Encapsulate module internals`).
+  - Enforce contract freeze testing using `backend/tools/snapshot_contracts.py --check` against golden snapshots in `docs/baseline/` (OpenAPI schema, Celery user tasks, and SQLAlchemy table metadata).
+  - Integrate into `make check` and the contract guard test suite (`backend/tests/contracts/test_architecture_and_migration_guards.py`).
+- **Consequence:** Architectural boundaries and public interface contracts are verified automatically with 0 build ambiguity and 0 runtime overhead.
+
+---
+
+### ADR-013: Configurable Host Port Mapping for Containerized PostgreSQL
+- **Context:** Developers frequently run native PostgreSQL instances on local machines (e.g. macOS PostgreSQL 18 service on default port 5432) or multi-project databases (e.g. `inviq_dev_db` on port 5433). Hardcoding `5432:5432` in `docker-compose.yml` caused Docker daemon bind conflicts (`address already in use`), blocking the application's PostgreSQL container from starting.
+- **Decision:**
+  - Update `docker-compose.yml` to parameterize the host port: `${POSTGRES_PORT:-5434}:5432`.
+  - Inside the internal Docker bridge network, containers continue communicating over default port `5432` (`postgresql://postgres:postgres@postgres:5432/promisecheck`).
+- **Consequence:** Prevents host port collisions on developer workstations while preserving consistent container-to-container service discovery.
+
+---
+
+### ADR-014: Repository Workspace Hygiene & Removal of Ad-Hoc Artifacts
+- **Context:** Unmanaged, empty directories (such as legacy `scratch/`) and transient caches (`.grimp_cache/`, `.import_linter_cache/`) clutter the repository root, create confusion about codebase structure, and risk accidental commits of sensitive or temporary artifacts.
+- **Decision:**
+  - Remove empty legacy scratch directories from the repository root.
+  - Standardize scratch space: any scratch scripts or temporary test data must reside in developer-local or ignored environments.
+  - Explicitly ignore all linter and AST caches (`.grimp_cache/`, `.import_linter_cache/`) in the root `.gitignore`.
+- **Consequence:** Clean, predictable repository hierarchy with zero untracked debris or transient cache leakage.

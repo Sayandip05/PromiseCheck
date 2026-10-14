@@ -65,6 +65,16 @@ def is_linear_configured() -> bool:
     )
 
 
+def is_slack_configured() -> bool:
+    """Check if Slack credentials (bot token, webhook, or signing secret) exist in environment."""
+    return bool(
+        os.getenv("SLACK_BOT_TOKEN")
+        or os.getenv("SLACK_WEBHOOK_URL")
+        or (os.getenv("SLACK_CLIENT_ID") and os.getenv("SLACK_CLIENT_SECRET"))
+        or os.getenv("SLACK_SIGNING_SECRET")
+    )
+
+
 CONNECTOR_FACTORIES = {
     "jira": JiraConnector,
     "linear": LinearConnector,
@@ -98,10 +108,10 @@ DEFAULT_PROVIDERS = [
     {
         "provider": "slack",
         "name": "Slack",
-        "connected": True,
-        "status_text": "Connected to #customer-commitments",
-        "last_sync": "Real-time alerts active",
-        "channel_or_scope": "#customer-commitments",
+        "connected": is_slack_configured(),
+        "status_text": f"Connected to {os.getenv('SLACK_ALERT_CHANNEL', '#all-aishield')}" if is_slack_configured() else "Not connected",
+        "last_sync": "Real-time alerts active" if is_slack_configured() else "Never",
+        "channel_or_scope": os.getenv("SLACK_ALERT_CHANNEL", "#all-aishield") if is_slack_configured() else None,
         "description": "Sends automated risk alerts and reminder notifications to designated team channels.",
     },
     {
@@ -229,7 +239,17 @@ async def _get_or_seed_integrations(db: AsyncSession, ws_id: uuid.UUID) -> list[
                 lin.channel_or_scope = lin.channel_or_scope or "Workspace cycles & blockers"
                 changed = True
 
-        # 3. Seed Google Drive if missing
+        # 3. Reconcile Slack if credentials exist in environment
+        if "slack" in existing_providers:
+            slk = existing_providers["slack"]
+            if is_slack_configured() and not slk.connected:
+                slk.connected = True
+                slk.status_text = f"Connected to {os.getenv('SLACK_ALERT_CHANNEL', '#all-aishield')}"
+                slk.last_sync = "Real-time alerts active"
+                slk.channel_or_scope = os.getenv("SLACK_ALERT_CHANNEL", "#all-aishield")
+                changed = True
+
+        # 4. Seed Google Drive if missing
         if "google_drive" not in existing_providers:
             gdrive_rec = WorkspaceIntegration(
                 workspace_id=ws_id,
@@ -425,7 +445,11 @@ async def test_integration(
 
     try:
         if provider == "slack":
-            channel = merged_config.get("channel") or merged_config.get("scope") or "#customer-commitments"
+            channel = (
+                merged_config.get("channel")
+                or merged_config.get("scope")
+                or os.getenv("SLACK_ALERT_CHANNEL", "#all-aishield")
+            )
             test_msg = payload.message or "🧪 PromiseCheck test alert: Slack integration connection verified!"
             delivery_res = await connector.post_message(text=test_msg, channel=channel)
             return TestIntegrationResponse(

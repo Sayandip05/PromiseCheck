@@ -31,7 +31,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
   const [webhookUrl, setWebhookUrl] = useState('');
   const [botToken, setBotToken] = useState('');
   const [signingSecret, setSigningSecret] = useState('');
-  const [channel, setChannel] = useState('#customer-commitments');
+  const [channel, setChannel] = useState('#all-aishield');
   const [notifyConflicts, setNotifyConflicts] = useState(true);
   const [notifyOverdue, setNotifyOverdue] = useState(true);
   const [notifyNewPromises, setNotifyNewPromises] = useState(true);
@@ -62,6 +62,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
               setAuthMode('webhook');
             } else if (slack.channelOrScope.startsWith('#')) {
               setChannel(slack.channelOrScope);
+              setAuthMode('token');
             }
           }
         }

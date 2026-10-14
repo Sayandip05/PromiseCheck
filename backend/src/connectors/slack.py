@@ -22,13 +22,17 @@ class SlackConnector(BaseConnector):
         signing_secret: Optional[str] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
+        app_id: Optional[str] = None,
+        verification_token: Optional[str] = None,
     ) -> None:
         self.bot_token = bot_token or os.getenv("SLACK_BOT_TOKEN") or ""
-        self.default_channel = default_channel or os.getenv("SLACK_ALERT_CHANNEL") or "#customer-commitments"
+        self.default_channel = default_channel or os.getenv("SLACK_ALERT_CHANNEL") or "#all-aishield"
         self.webhook_url = webhook_url or os.getenv("SLACK_WEBHOOK_URL") or ""
         self.signing_secret = signing_secret or os.getenv("SLACK_SIGNING_SECRET") or ""
         self.client_id = client_id or os.getenv("SLACK_CLIENT_ID") or ""
         self.client_secret = client_secret or os.getenv("SLACK_CLIENT_SECRET") or ""
+        self.app_id = app_id or os.getenv("SLACK_APP_ID") or ""
+        self.verification_token = verification_token or os.getenv("SLACK_VERIFICATION_TOKEN") or ""
 
     @property
     def provider_name(self) -> str:

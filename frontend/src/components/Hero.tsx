@@ -71,12 +71,16 @@ export const Hero: React.FC<HeroProps> = ({ darkMode, onOpenLogin }) => {
                 : 'bg-[#f4f5f8] border-neutral-200'
             }`}
           >
-            {/* The White Canvas (sharp corners, original dimensions preserved) */}
+            {/* The Canvas (sharp corners, original dimensions strictly preserved, theme-reactive) */}
             <div 
               id="hero-dashboard-placeholder"
-              className="w-full min-h-[360px] sm:min-h-[440px] lg:min-h-[480px] bg-white border border-neutral-200/90 rounded-none shadow-xs flex flex-col p-4 sm:p-6 lg:p-6.5 overflow-hidden"
+              className={`w-full min-h-[360px] sm:min-h-[440px] lg:min-h-[480px] rounded-none shadow-xs flex flex-col p-4 sm:p-6 lg:p-6.5 overflow-hidden transition-colors duration-200 border ${
+                darkMode 
+                  ? 'bg-[#0a0a0f] border-neutral-800/90' 
+                  : 'bg-white border-neutral-200/90'
+              }`}
             >
-              <BusinessFlowHeroVisual onOpenLogin={onOpenLogin} />
+              <BusinessFlowHeroVisual darkMode={darkMode} />
             </div>
           </div>
         </div>

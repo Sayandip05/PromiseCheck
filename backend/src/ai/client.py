@@ -24,7 +24,7 @@ class AIClient:
         model: str = settings.LLM_MODEL,
     ) -> None:
         self.provider = provider or "groq"
-        self.model = model or "llama-3.3-70b-versatile"
+        self.model = model or "openai/gpt-oss-120b"
         self.groq_api_key = (
             settings.GROQ_API_KEY
             or settings.LLM_API_KEY

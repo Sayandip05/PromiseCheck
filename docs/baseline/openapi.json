@@ -462,6 +462,17 @@
             ],
             "title": "Api Token"
           },
+          "app_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Id"
+          },
           "bot_name": {
             "anyOf": [
               {
@@ -608,6 +619,17 @@
             ],
             "title": "Scope"
           },
+          "signing_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signing Secret"
+          },
           "team_key": {
             "anyOf": [
               {
@@ -618,6 +640,17 @@
               }
             ],
             "title": "Team Key"
+          },
+          "verification_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Token"
           },
           "webhook_url": {
             "anyOf": [
@@ -1633,6 +1666,17 @@
             ],
             "title": "Api Token"
           },
+          "app_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Id"
+          },
           "bot_token": {
             "anyOf": [
               {
@@ -1709,6 +1753,28 @@
               }
             ],
             "title": "Region"
+          },
+          "signing_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signing Secret"
+          },
+          "verification_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Token"
           },
           "webhook_url": {
             "anyOf": [

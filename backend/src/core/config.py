@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     # 5. AI, Groq & Extraction
     GROQ_API_KEY: str = ""
     LLM_PROVIDER: str = "groq"
-    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_MODEL: str = "openai/gpt-oss-120b"
     GEMINI_API_KEY: str = ""
     LLM_API_KEY: str = ""
     EMBEDDING_MODEL: str = "text-embedding-3-small"

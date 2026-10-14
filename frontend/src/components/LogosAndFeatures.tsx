@@ -259,19 +259,19 @@ export const LogosAndFeatures: React.FC<LogosAndFeaturesProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Square Blank White Card with Sharp Corners */}
-        <div className={`lg:col-span-7 p-6 sm:p-10 lg:p-12 flex items-center justify-center ${
+        {/* Right Column: Blank White Card with Sharp Corners (Made wider on left and right) */}
+        <div className={`lg:col-span-7 p-6 sm:p-8 lg:p-10 flex items-center justify-center ${
           darkMode ? 'bg-[#08080a]' : 'bg-[#fafbfc]'
         }`}>
           {/* Framed container with sharp corners */}
-          <div className={`w-full max-w-[460px] p-4 sm:p-6 rounded-none border transition-all duration-200 ${
+          <div className={`w-full max-w-[580px] p-3 sm:p-5 rounded-none border transition-all duration-200 ${
             darkMode ? 'bg-[#0e0e13] border-neutral-800' : 'bg-[#f4f5f8] border-neutral-200'
           }`}>
             
-            {/* The Square Blank White Card with Sharp Corners (zero information) */}
+            {/* The Blank White Card with Sharp Corners (zero information, wider on left and right) */}
             <div 
               id="feature-blank-square-card"
-              className="w-full aspect-square bg-white border border-neutral-200/90 rounded-none shadow-xs flex items-center justify-center"
+              className="w-full aspect-[16/11] min-h-[320px] sm:min-h-[360px] bg-white border border-neutral-200/90 rounded-none shadow-xs flex items-center justify-center"
             >
               {/* Nothing, zero information */}
             </div>

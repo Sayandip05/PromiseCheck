@@ -1,4 +1,4 @@
-import React from 'react';
+import { BusinessFlowHeroVisual } from './landing/BusinessFlowHeroVisual';
 
 interface HeroProps {
   darkMode: boolean;
@@ -61,7 +61,7 @@ export const Hero: React.FC<HeroProps> = ({ darkMode, onOpenLogin }) => {
           </div>
         </div>
 
-        {/* Right Column: Blank Space & White Placeholder with Sharp Corners */}
+        {/* Right Column: White Space with Business & Integration Flow Representation */}
         <div className="lg:col-span-7">
           {/* Framed container with sharp corners */}
           <div 
@@ -71,12 +71,12 @@ export const Hero: React.FC<HeroProps> = ({ darkMode, onOpenLogin }) => {
                 : 'bg-[#f4f5f8] border-neutral-200'
             }`}
           >
-            {/* The White Placeholder (blank space, sharp corners) */}
+            {/* The White Canvas (sharp corners, original dimensions preserved) */}
             <div 
               id="hero-dashboard-placeholder"
-              className="w-full min-h-[360px] sm:min-h-[440px] lg:min-h-[480px] bg-white border border-neutral-200/90 rounded-none shadow-xs flex items-center justify-center p-6 sm:p-8"
+              className="w-full min-h-[360px] sm:min-h-[440px] lg:min-h-[480px] bg-white border border-neutral-200/90 rounded-none shadow-xs flex flex-col p-4 sm:p-6 lg:p-6.5 overflow-hidden"
             >
-              {/* Blank placeholder space */}
+              <BusinessFlowHeroVisual onOpenLogin={onOpenLogin} />
             </div>
           </div>
         </div>

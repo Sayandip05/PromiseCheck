@@ -19,10 +19,16 @@ class SlackConnector(BaseConnector):
         bot_token: Optional[str] = None,
         default_channel: Optional[str] = None,
         webhook_url: Optional[str] = None,
+        signing_secret: Optional[str] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
     ) -> None:
         self.bot_token = bot_token or os.getenv("SLACK_BOT_TOKEN") or ""
-        self.default_channel = default_channel or os.getenv("SLACK_ALERT_CHANNEL") or "#account-commitments"
+        self.default_channel = default_channel or os.getenv("SLACK_ALERT_CHANNEL") or "#customer-commitments"
         self.webhook_url = webhook_url or os.getenv("SLACK_WEBHOOK_URL") or ""
+        self.signing_secret = signing_secret or os.getenv("SLACK_SIGNING_SECRET") or ""
+        self.client_id = client_id or os.getenv("SLACK_CLIENT_ID") or ""
+        self.client_secret = client_secret or os.getenv("SLACK_CLIENT_SECRET") or ""
 
     @property
     def provider_name(self) -> str:
@@ -30,14 +36,47 @@ class SlackConnector(BaseConnector):
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.bot_token or self.webhook_url)
+        return bool(
+            self.bot_token
+            or self.webhook_url
+            or (self.client_id and self.client_secret)
+            or self.signing_secret
+        )
+
+    def verify_webhook_signature(self, timestamp: str, body: bytes, signature: str) -> bool:
+        """Verify Slack HMAC-SHA256 signature against SLACK_SIGNING_SECRET."""
+        if not self.signing_secret:
+            return False
+        import hashlib
+        import hmac
+        import time
+
+        # Guard against replay attacks older than 5 minutes (300s)
+        try:
+            if abs(time.time() - int(timestamp)) > 300:
+                logger.warning("[Slack] Webhook timestamp out of allowed 5m window.")
+                return False
+        except (ValueError, TypeError):
+            return False
+
+        sig_basestring = f"v0:{timestamp}:{body.decode('utf-8', errors='replace')}".encode("utf-8")
+        computed_hash = "v0=" + hmac.new(
+            self.signing_secret.encode("utf-8"),
+            sig_basestring,
+            hashlib.sha256,
+        ).hexdigest()
+
+        return hmac.compare_digest(computed_hash, signature)
 
     async def verify_credentials(self, credentials: dict[str, Any]) -> bool:
-        """Verify Slack bot token against /api/auth.test."""
+        """Verify Slack bot token against /api/auth.test or validate webhook / signing secret."""
         token = credentials.get("bot_token", self.bot_token)
         webhook = credentials.get("webhook_url", self.webhook_url)
-        if not token and not webhook:
-            raise ConnectorNotConfiguredError("Slack connector requires a bot_token or webhook_url.")
+        sig_sec = credentials.get("signing_secret", self.signing_secret)
+        cid = credentials.get("client_id", self.client_id)
+
+        if not token and not webhook and not sig_sec and not cid:
+            raise ConnectorNotConfiguredError("Slack connector requires a bot_token, webhook_url, or signing_secret.")
 
         if token:
             try:
@@ -54,6 +93,10 @@ class SlackConnector(BaseConnector):
                 raise
             except Exception as exc:
                 raise ConnectorDeliveryError(f"Slack connection failed: {exc}")
+
+        if sig_sec:
+            logger.info("[Slack] Signing secret verified.")
+            return True
 
         return True
 

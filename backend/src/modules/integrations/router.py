@@ -143,6 +143,9 @@ def instantiate_connector(provider: str, config: Optional[dict[str, Any]] = None
             bot_token=cfg.get("bot_token") or cfg.get("api_key"),
             default_channel=cfg.get("channel") or cfg.get("scope"),
             webhook_url=cfg.get("webhook_url"),
+            signing_secret=cfg.get("signing_secret"),
+            client_id=cfg.get("client_id"),
+            client_secret=cfg.get("client_secret"),
         )
     elif provider == "jira":
         return JiraConnector(

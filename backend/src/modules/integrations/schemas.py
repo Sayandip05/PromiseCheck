@@ -36,6 +36,7 @@ class ConnectIntegrationRequest(BaseModel):
     email: Optional[str] = None
     api_token: Optional[str] = None
     bot_token: Optional[str] = None
+    signing_secret: Optional[str] = None
     channel: Optional[str] = None
     region: Optional[str] = None
     bot_name: Optional[str] = None
@@ -58,6 +59,7 @@ class TestIntegrationRequest(BaseModel):
     api_token: Optional[str] = None
     webhook_url: Optional[str] = None
     bot_token: Optional[str] = None
+    signing_secret: Optional[str] = None
     channel: Optional[str] = None
     region: Optional[str] = None
     access_token: Optional[str] = None

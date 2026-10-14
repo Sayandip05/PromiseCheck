@@ -30,6 +30,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
   const [authMode, setAuthMode] = useState<'webhook' | 'token'>('webhook');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [botToken, setBotToken] = useState('');
+  const [signingSecret, setSigningSecret] = useState('');
   const [channel, setChannel] = useState('#customer-commitments');
   const [notifyConflicts, setNotifyConflicts] = useState(true);
   const [notifyOverdue, setNotifyOverdue] = useState(true);
@@ -77,6 +78,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
       const res = await api.integrations.test('slack', {
         webhook_url: webhookUrl.trim() || undefined,
         bot_token: botToken.trim() || undefined,
+        signing_secret: signingSecret.trim() || undefined,
         channel: channel.trim() || '#customer-commitments',
         message: '🧪 PromiseCheck alert: Slack live connector test successful! Delivery confirmed.',
       });
@@ -102,6 +104,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
       await api.integrations.connect('slack', {
         webhook_url: authMode === 'webhook' ? webhookUrl.trim() || undefined : undefined,
         bot_token: authMode === 'token' ? botToken.trim() || undefined : undefined,
+        signing_secret: signingSecret.trim() || undefined,
         channel: channel.trim() || '#customer-commitments',
         scope: channel.trim() || '#customer-commitments',
         notify_conflicts: notifyConflicts,
@@ -313,6 +316,33 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({
               placeholder="#customer-commitments"
               className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600"
             />
+          </div>
+
+          {/* Slack Signing Secret */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Slack Signing Secret (Optional)
+              </label>
+              <a
+                href="https://api.slack.com/apps"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+              >
+                App Credentials <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            </div>
+            <input
+              type="password"
+              value={signingSecret}
+              onChange={(e) => setSigningSecret(e.target.value)}
+              placeholder="e.g. 8f7a6b5c4d3e2f1a..."
+              className="w-full text-xs px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 dark:focus:ring-neutral-600 font-mono"
+            />
+            <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+              Found under Slack App Settings → Basic Information → App Credentials → Signing Secret.
+            </p>
           </div>
 
           {/* Alert Trigger Rules */}

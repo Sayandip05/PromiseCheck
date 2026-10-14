@@ -2,12 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   AlertTriangle, 
-  CheckCircle2, 
   ShieldCheck, 
   Clock, 
-  MessageSquare,
-  Layers,
-  ArrowRight
+  MessageSquare
 } from 'lucide-react';
 import { GoogleMeetLogo, GmailLogo, JiraLogo, LinearLogo, SlackLogo } from '../ui/BrandLogos';
 
@@ -24,32 +21,24 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
       title: '1. Ingest & Listen',
       shortLabel: 'Capture',
       subtitle: 'Captures commitments made in customer calls and email threads.',
-      badge: 'Real-time Ingestion',
-      badgeColor: darkMode ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
     },
     {
       id: 1,
       title: '2. AI Extraction',
       shortLabel: 'AI Extract',
       subtitle: 'Intelligent AI extracts exact quotes, dates, deliverables, and customers.',
-      badge: '99% Precision',
-      badgeColor: darkMode ? 'bg-blue-950/60 text-blue-300 border-blue-800/80' : 'bg-blue-50 text-blue-700 border-blue-200',
     },
     {
       id: 2,
       title: '3. Engineering Sync',
       shortLabel: 'Jira Sync',
       subtitle: 'Matches promises against Jira & Linear sprints to detect date conflicts.',
-      badge: 'Conflict Alert',
-      badgeColor: darkMode ? 'bg-amber-950/60 text-amber-300 border-amber-800/80' : 'bg-amber-50 text-amber-700 border-amber-200',
     },
     {
       id: 3,
       title: '4. Slack & Delivery',
       shortLabel: 'Slack Alert',
       subtitle: 'Dispatches instant warnings to #all-aishield before trust is damaged.',
-      badge: 'Delivery Verified',
-      badgeColor: darkMode ? 'bg-purple-950/60 text-purple-300 border-purple-800/80' : 'bg-purple-50 text-purple-700 border-purple-200',
     },
   ];
 
@@ -67,28 +56,21 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
         darkMode ? 'text-white' : 'text-neutral-900'
       }`}
     >
-      {/* Top Bar: Pipeline Header + Automated Step Indicator */}
-      <div className={`flex flex-col sm:flex-row sm:items-center justify-between pb-3 sm:pb-3.5 border-b transition-colors duration-200 gap-2 ${
+      {/* Top Bar: Clean Header + Single-Line Step Scrubber (Automated Pipeline badge removed) */}
+      <div className={`flex flex-row items-center justify-between pb-3 sm:pb-3.5 border-b transition-colors duration-200 gap-3 ${
         darkMode ? 'border-neutral-800' : 'border-neutral-200/90'
       }`}>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className={`text-[11px] font-semibold tracking-wider uppercase ${
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className={`text-[11px] font-semibold tracking-wider uppercase whitespace-nowrap ${
             darkMode ? 'text-neutral-400' : 'text-neutral-500'
           }`}>
             PromiseCheck Flow Engine
           </span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${
-            darkMode 
-              ? 'bg-neutral-900 text-neutral-300 border-neutral-800' 
-              : 'bg-neutral-100 text-neutral-600 border-neutral-200'
-          }`}>
-            Automated Pipeline
-          </span>
         </div>
 
-        {/* Step Progression Pills (auto-advancing) */}
-        <div className={`flex items-center gap-1 p-1 rounded-lg border transition-colors duration-200 self-start sm:self-auto ${
+        {/* Step Progression: Strictly single line, no line break, zero text-width shifts */}
+        <div className={`flex items-center flex-nowrap gap-1 p-1 rounded-lg border transition-colors duration-200 shrink-0 ${
           darkMode ? 'bg-neutral-900/90 border-neutral-800' : 'bg-neutral-100/90 border-neutral-200/80'
         }`}>
           {steps.map((step) => {
@@ -96,14 +78,12 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
             return (
               <div
                 key={step.id}
-                className={`text-[11px] font-medium px-2 sm:px-2.5 py-1 rounded transition-all duration-300 ${
+                className={`text-[11px] font-medium whitespace-nowrap px-2.5 sm:px-3 py-1 rounded transition-colors duration-200 border ${
                   isActive
                     ? darkMode
-                      ? 'bg-neutral-800 text-white font-semibold shadow-xs border border-neutral-700'
-                      : 'bg-white text-neutral-900 font-semibold shadow-xs border border-neutral-200/90'
-                    : darkMode
-                      ? 'text-neutral-500'
-                      : 'text-neutral-500'
+                      ? 'bg-neutral-800 text-white border-neutral-700 shadow-2xs'
+                      : 'bg-white text-neutral-900 border-neutral-200/90 shadow-2xs'
+                    : 'text-neutral-500 border-transparent'
                 }`}
               >
                 {step.shortLabel}
@@ -113,16 +93,16 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
         </div>
       </div>
 
-      {/* Main 4-Stage Connected Workflow Cards */}
+      {/* Main 4-Stage Connected Workflow Cards (No scale, fixed dimensions, zero jitter) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 py-3 sm:py-3.5">
         
         {/* Stage 1: Capture */}
         <div 
-          className={`rounded-xl p-3 border transition-all duration-500 flex flex-col justify-between ${
+          className={`rounded-xl p-3 border transition-colors duration-300 flex flex-col justify-between ${
             activeStep === 0
               ? darkMode
-                ? 'bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/40 shadow-xs scale-[1.01]'
-                : 'bg-blue-50/60 border-blue-400 ring-2 ring-blue-200 shadow-xs scale-[1.01]'
+                ? 'bg-blue-950/40 border-blue-500 shadow-sm'
+                : 'bg-blue-50/70 border-blue-400 shadow-sm'
               : darkMode
                 ? 'bg-neutral-900/50 border-neutral-800/90'
                 : 'bg-neutral-50/70 border-neutral-200'
@@ -165,11 +145,11 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
 
         {/* Stage 2: AI Extract */}
         <div 
-          className={`rounded-xl p-3 border transition-all duration-500 flex flex-col justify-between ${
+          className={`rounded-xl p-3 border transition-colors duration-300 flex flex-col justify-between ${
             activeStep === 1
               ? darkMode
-                ? 'bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/40 shadow-xs scale-[1.01]'
-                : 'bg-indigo-50/60 border-indigo-400 ring-2 ring-indigo-200 shadow-xs scale-[1.01]'
+                ? 'bg-indigo-950/40 border-indigo-500 shadow-sm'
+                : 'bg-indigo-50/70 border-indigo-400 shadow-sm'
               : darkMode
                 ? 'bg-neutral-900/50 border-neutral-800/90'
                 : 'bg-neutral-50/70 border-neutral-200'
@@ -203,11 +183,11 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
 
         {/* Stage 3: Engineering Sync */}
         <div 
-          className={`rounded-xl p-3 border transition-all duration-500 flex flex-col justify-between ${
+          className={`rounded-xl p-3 border transition-colors duration-300 flex flex-col justify-between ${
             activeStep === 2
               ? darkMode
-                ? 'bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/40 shadow-xs scale-[1.01]'
-                : 'bg-amber-50/60 border-amber-400 ring-2 ring-amber-200 shadow-xs scale-[1.01]'
+                ? 'bg-amber-950/40 border-amber-500 shadow-sm'
+                : 'bg-amber-50/70 border-amber-400 shadow-sm'
               : darkMode
                 ? 'bg-neutral-900/50 border-neutral-800/90'
                 : 'bg-neutral-50/70 border-neutral-200'
@@ -250,11 +230,11 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
 
         {/* Stage 4: Alert & Delivery */}
         <div 
-          className={`rounded-xl p-3 border transition-all duration-500 flex flex-col justify-between ${
+          className={`rounded-xl p-3 border transition-colors duration-300 flex flex-col justify-between ${
             activeStep === 3
               ? darkMode
-                ? 'bg-purple-950/40 border-purple-500 ring-2 ring-purple-500/40 shadow-xs scale-[1.01]'
-                : 'bg-purple-50/60 border-purple-400 ring-2 ring-purple-200 shadow-xs scale-[1.01]'
+                ? 'bg-purple-950/40 border-purple-500 shadow-sm'
+                : 'bg-purple-50/70 border-purple-400 shadow-sm'
               : darkMode
                 ? 'bg-neutral-900/50 border-neutral-800/90'
                 : 'bg-neutral-50/70 border-neutral-200'
@@ -290,7 +270,7 @@ export const BusinessFlowHeroVisual: React.FC<BusinessFlowHeroVisualProps> = ({ 
 
       </div>
 
-      {/* The Live Promise Item Card (Detailed Business Representation) */}
+      {/* The Live Promise Item Card (Detailed Business Representation, fixed height/layout) */}
       <div className={`rounded-xl border p-3 sm:p-3.5 transition-colors duration-200 ${
         darkMode ? 'bg-neutral-900/70 border-neutral-800' : 'bg-neutral-50/90 border-neutral-200'
       }`}>

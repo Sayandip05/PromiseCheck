@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ChevronDown, 
   Sun, 
@@ -57,25 +57,30 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-xl font-bold tracking-tight">PromiseCheck</span>
         </div>
 
-        {/* Desktop Navigation Links */}
+        {/* Desktop Navigation Links with Pop-up Underline on Hover */}
         <nav className={`hidden md:flex items-center gap-7 text-sm font-normal ${
           darkMode ? 'text-neutral-300' : 'text-neutral-600'
         }`}>
           {/* Product Dropdown */}
           <div 
-            className="relative"
+            className="relative group"
             onMouseEnter={() => setProductDropdownOpen(true)}
             onMouseLeave={() => setProductDropdownOpen(false)}
           >
             <button 
               id="nav-product-btn"
               onClick={() => onScrollTo('features-section')}
-              className={`flex items-center gap-1 transition-colors py-2 cursor-pointer ${
+              className={`flex items-center gap-1 transition-colors py-2 cursor-pointer relative ${
                 darkMode ? 'hover:text-white' : 'hover:text-black'
               }`}
             >
               <span>Product</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${productDropdownOpen ? 'rotate-180' : ''}`} />
+              
+              {/* Pop-up underline: appears ONLY when moving cursor over section, white on dark, black on light */}
+              <span className={`absolute bottom-0 left-0 w-full h-[2px] transition-all duration-200 ease-out origin-center scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+                darkMode ? 'bg-white' : 'bg-black'
+              }`} />
             </button>
 
             {productDropdownOpen && (
@@ -131,46 +136,70 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </div>
-
-          <button 
-            id="nav-about-btn"
-            onClick={() => onOpenLogin('signup')}
-            className={`transition-colors cursor-pointer ${darkMode ? 'hover:text-white' : 'hover:text-black'}`}
-          >
-            About us
-          </button>
           
-          <button 
-            id="nav-pricing-btn"
-            onClick={() => onScrollTo('pricing-section')}
-            className={`transition-colors cursor-pointer ${darkMode ? 'hover:text-white' : 'hover:text-black'}`}
-          >
-            Pricing
-          </button>
+          {/* Pricing */}
+          <div className="relative group">
+            <button 
+              id="nav-pricing-btn"
+              onClick={() => onScrollTo('pricing-section')}
+              className={`transition-colors py-2 cursor-pointer relative ${
+                darkMode ? 'hover:text-white' : 'hover:text-black'
+              }`}
+            >
+              <span>Pricing</span>
+              <span className={`absolute bottom-0 left-0 w-full h-[2px] transition-all duration-200 ease-out origin-center scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+                darkMode ? 'bg-white' : 'bg-black'
+              }`} />
+            </button>
+          </div>
 
-          <button 
-            id="nav-faq-btn"
-            onClick={() => onScrollTo('faq-section')}
-            className={`transition-colors cursor-pointer ${darkMode ? 'hover:text-white' : 'hover:text-black'}`}
-          >
-            FAQ
-          </button>
+          {/* FAQ */}
+          <div className="relative group">
+            <button 
+              id="nav-faq-btn"
+              onClick={() => onScrollTo('faq-section')}
+              className={`transition-colors py-2 cursor-pointer relative ${
+                darkMode ? 'hover:text-white' : 'hover:text-black'
+              }`}
+            >
+              <span>FAQ</span>
+              <span className={`absolute bottom-0 left-0 w-full h-[2px] transition-all duration-200 ease-out origin-center scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+                darkMode ? 'bg-white' : 'bg-black'
+              }`} />
+            </button>
+          </div>
 
-          <button 
-            id="nav-blog-btn"
-            onClick={() => onScrollTo('testimonials-section')}
-            className={`transition-colors cursor-pointer ${darkMode ? 'hover:text-white' : 'hover:text-black'}`}
-          >
-            Blog
-          </button>
+          {/* Blog */}
+          <div className="relative group">
+            <button 
+              id="nav-blog-btn"
+              onClick={() => onScrollTo('testimonials-section')}
+              className={`transition-colors py-2 cursor-pointer relative ${
+                darkMode ? 'hover:text-white' : 'hover:text-black'
+              }`}
+            >
+              <span>Blog</span>
+              <span className={`absolute bottom-0 left-0 w-full h-[2px] transition-all duration-200 ease-out origin-center scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+                darkMode ? 'bg-white' : 'bg-black'
+              }`} />
+            </button>
+          </div>
 
-          <button 
-            id="nav-contact-btn"
-            onClick={() => onOpenLogin('contact')}
-            className={`transition-colors cursor-pointer ${darkMode ? 'hover:text-white' : 'hover:text-black'}`}
-          >
-            Contact
-          </button>
+          {/* Contact */}
+          <div className="relative group">
+            <button 
+              id="nav-contact-btn"
+              onClick={() => onOpenLogin('contact')}
+              className={`transition-colors py-2 cursor-pointer relative ${
+                darkMode ? 'hover:text-white' : 'hover:text-black'
+              }`}
+            >
+              <span>Contact</span>
+              <span className={`absolute bottom-0 left-0 w-full h-[2px] transition-all duration-200 ease-out origin-center scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+                darkMode ? 'bg-white' : 'bg-black'
+              }`} />
+            </button>
+          </div>
         </nav>
 
         {/* Right Action Items: Login button + Theme Toggle */}
@@ -258,12 +287,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="block w-full text-left py-2 font-medium"
           >
             Product
-          </button>
-          <button 
-            onClick={() => { setMobileMenuOpen(false); onOpenLogin('signup'); }}
-            className="block w-full text-left py-2 font-medium"
-          >
-            About us
           </button>
           <button 
             onClick={() => { setMobileMenuOpen(false); onScrollTo('pricing-section'); }}

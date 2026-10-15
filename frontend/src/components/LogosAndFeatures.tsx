@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FEATURES_LIST } from '../data/mockData';
+import { FeatureCardSpotlight } from './landing/FeatureCardSpotlight';
 import { 
   ScanSearch, 
   Activity, 
@@ -268,12 +269,16 @@ export const LogosAndFeatures: React.FC<LogosAndFeaturesProps> = ({
             darkMode ? 'bg-[#0e0e13] border-neutral-800' : 'bg-[#f4f5f8] border-neutral-200'
           }`}>
             
-            {/* The Blank White Card with Sharp Corners (zero information, wider on left and right) */}
+            {/* The Card with Sharp Corners (Customized for each of the 4 sections, theme-reactive) */}
             <div 
               id="feature-blank-square-card"
-              className="w-full aspect-[16/11] min-h-[320px] sm:min-h-[360px] bg-white border border-neutral-200/90 rounded-none shadow-xs flex items-center justify-center"
+              className={`w-full aspect-[16/11] min-h-[320px] sm:min-h-[360px] rounded-none shadow-xs flex items-center justify-center overflow-hidden border transition-colors duration-200 ${
+                darkMode 
+                  ? 'bg-[#0d0d12] border-neutral-800/90' 
+                  : 'bg-white border-neutral-200/90'
+              }`}
             >
-              {/* Nothing, zero information */}
+              <FeatureCardSpotlight activeTab={activeTab} darkMode={darkMode} />
             </div>
 
           </div>

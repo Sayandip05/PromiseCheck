@@ -111,7 +111,16 @@ async def test_google_oauth_callback_successful_exchange_persists_tokens_and_upd
     db_session.add(Membership(workspace_id=ws.id, user_id=user.id, role=Role.ADMIN))
     await db_session.commit()
 
-    state = f"{ws.id}:{uuid.uuid4().hex[:12]}"
+    # Obtain a server-issued, single-use state token (CSRF protection requires
+    # the callback to validate a state that this server actually issued).
+    user_token = create_access_token(user_id=user.id, email=user.email)
+    authorize_res = app_client.get(
+        "/api/v1/integrations/google/authorize",
+        headers={"Authorization": f"Bearer {user_token}", "X-Workspace-Id": str(ws.id)},
+    )
+    assert authorize_res.status_code == 200
+    state = authorize_res.json()["state"]
+
     mock_tokens = {
         "access_token": "ya29.valid_test_access_token",
         "refresh_token": "1//valid_test_refresh_token",
@@ -153,10 +162,6 @@ async def test_google_oauth_callback_successful_exchange_persists_tokens_and_upd
     assert config["email"] == "connected_user@acme.com"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-7: google_oauth_callback_get lacks CSRF state replay/forgery protection; accepts stateless unvalidated nonces",
-)
 def test_google_oauth_callback_rejects_replayed_or_forged_state(
     app_client: TestClient,
 ):
@@ -168,10 +173,6 @@ def test_google_oauth_callback_rejects_replayed_or_forged_state(
     assert "Invalid or replayed state" in res.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-8: missing legacy route alias /api/v1/operations/integrations/google/callback registered with external OAuth console",
-)
 def test_google_oauth_callback_legacy_operations_route_alias_accessible(
     app_client: TestClient,
 ):
@@ -337,10 +338,6 @@ async def test_mcp_tools_list_returns_manifest(
     assert expected_tools.issubset(tool_names)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-9: list_commitments_tool calls CommitmentService.list_commitments with mismatched keyword argument 'status' instead of 'status_filter'",
-)
 @pytest.mark.asyncio
 async def test_mcp_call_list_commitments_scopes_to_caller_workspace(
     app_client: TestClient,

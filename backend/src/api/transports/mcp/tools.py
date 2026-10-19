@@ -9,7 +9,7 @@ import uuid
 from typing import Any, Optional
 
 from core.database import AsyncSessionLocal
-from modules.commitments import CommitmentCreateRequest, CommitmentService
+from modules.commitments import CommitmentCreateRequest, CommitmentService, RiskService
 
 
 async def _resolve_workspace(workspace_id: Optional[str]) -> uuid.UUID:
@@ -35,30 +35,30 @@ async def list_commitments_tool(
         items, _ = await CommitmentService.list_commitments(
             db=db,
             workspace_id=ws_uuid,
-            status=status,
+            status_filter=status,
             search=customer,
-            limit=min(limit, 100),
-            offset=0,
+            page=1,
+            page_size=min(limit, 100),
         )
         return [
             {
-                "id": str(c.id),
-                "title": c.title,
-                "customer": c.customer_name,
-                "status": c.status,
-                "status_label": c.status_label,
-                "promised_by": c.promised_by,
-                "promised_date": c.promised_date.isoformat() if c.promised_date else None,
-                "is_confirmed": c.is_confirmed,
-                "has_conflict": c.has_conflict,
-                "conflict_days": c.conflict_days,
-                "ticket_id": c.ticket_id,
-                "ticket_status": c.ticket_status,
-                "quote": c.quote,
-                "engineering_evidence": c.engineering_evidence_json,
-                "risk": c.risk_json,
+                "id": d.id,
+                "title": d.title,
+                "customer": d.customer,
+                "status": d.status,
+                "status_label": d.statusLabel,
+                "promised_by": d.promisedBy,
+                "promised_date": d.promisedDateIso,
+                "is_confirmed": d.isConfirmed,
+                "category": d.category,
+                "owner": d.owner.model_dump() if d.owner else None,
+                "original_promise": d.originalPromise.model_dump() if d.originalPromise else None,
+                "engineering_evidence": (
+                    d.engineeringEvidence.model_dump() if d.engineeringEvidence else None
+                ),
+                "risk": d.risk.model_dump() if d.risk else None,
             }
-            for c in items
+            for d in items
         ]
 
 
@@ -79,7 +79,7 @@ async def get_commitment_evidence_tool(
     ws_uuid = await _resolve_workspace(workspace_id)
 
     async with AsyncSessionLocal() as db:
-        c = await CommitmentService.get_commitment(db, ws_uuid, c_uuid)
+        c = await CommitmentService.get_by_id(db, ws_uuid, c_uuid)
         if not c:
             return {"error": f"Commitment '{commitment_id}' not found"}
 
@@ -152,7 +152,7 @@ async def create_update_draft_tool(
     ws_uuid = await _resolve_workspace(workspace_id)
 
     async with AsyncSessionLocal() as db:
-        c = await CommitmentService.get_commitment(db, ws_uuid, c_uuid)
+        c = await CommitmentService.get_by_id(db, ws_uuid, c_uuid)
         if not c:
             return {"error": f"Commitment '{commitment_id}' not found"}
 
@@ -168,6 +168,27 @@ async def create_update_draft_tool(
             "draft_body": body,
             "requires_approval": True,
         }
+
+
+async def investigate_commitment_tool(
+    commitment_id: str,
+    workspace_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Investigate delivery risk for a commitment with a bounded tool-using agent.
+
+    Cross-references the linked Jira/Linear ticket when configured and returns
+    structured findings plus a recommended mitigation step.  Scoped to the
+    caller's workspace.
+    """
+    try:
+        c_uuid = uuid.UUID(commitment_id)
+    except ValueError:
+        return {"error": "Invalid commitment UUID format"}
+
+    ws_uuid = await _resolve_workspace(workspace_id)
+
+    async with AsyncSessionLocal() as db:
+        return await RiskService.investigate_commitment(db, ws_uuid, c_uuid)
 
 
 # Tool Definitions for MCP Discovery Protocol
@@ -189,6 +210,21 @@ MCP_TOOLS_MANIFEST = [
         "name": "get_commitment_evidence",
         "description": "Fetch quote, meeting transcript snippet, and Jira/Linear ticket linkage for a commitment.",
         "required_scope": "evidence:read",
+        "inputSchema": {
+            "type": "object",
+            "required": ["commitment_id"],
+            "properties": {
+                "commitment_id": {"type": "string", "description": "UUID of the commitment"},
+            },
+        },
+    },
+    {
+        "name": "investigate_commitment",
+        "description": (
+            "Investigate delivery risk for a commitment, cross-referencing linked "
+            "Jira/Linear tickets and returning a recommended mitigation step."
+        ),
+        "required_scope": "risk:read",
         "inputSchema": {
             "type": "object",
             "required": ["commitment_id"],

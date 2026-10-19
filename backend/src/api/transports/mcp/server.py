@@ -7,16 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from core.logging import get_logger
-from modules.iam import User, WorkspaceService, get_active_workspace_id, get_current_user
 from api.transports.mcp.tools import (
     MCP_TOOLS_MANIFEST,
     create_commitment_tool,
     create_update_draft_tool,
     get_commitment_evidence_tool,
+    investigate_commitment_tool,
     list_commitments_tool,
 )
+from core.database import get_db
+from core.logging import get_logger
+from modules.iam import User, WorkspaceService, get_active_workspace_id, get_current_user
 
 logger = get_logger("mcp_server")
 mcp_router = APIRouter(prefix="/mcp", tags=["Model Context Protocol (MCP)"])
@@ -28,6 +29,7 @@ mcp_router = APIRouter(prefix="/mcp", tags=["Model Context Protocol (MCP)"])
 _TOOL_SCOPES: dict[str, str] = {
     "list_commitments": "commitments:read",
     "get_commitment_evidence": "evidence:read",
+    "investigate_commitment": "risk:read",
     "create_commitment": "commitments:write",
     "create_update_draft": "drafts:write",
 }
@@ -150,8 +152,20 @@ async def call_mcp_tool(
         elif tool_name == "get_commitment_evidence":
             commitment_id = args.get("commitment_id")
             if not commitment_id:
-                raise HTTPException(status_code=400, detail="Missing required argument 'commitment_id'")
+                raise HTTPException(
+                    status_code=400, detail="Missing required argument 'commitment_id'"
+                )
             data = await get_commitment_evidence_tool(
+                commitment_id=commitment_id,
+                workspace_id=str(ws_id),
+            )
+        elif tool_name == "investigate_commitment":
+            commitment_id = args.get("commitment_id")
+            if not commitment_id:
+                raise HTTPException(
+                    status_code=400, detail="Missing required argument 'commitment_id'"
+                )
+            data = await investigate_commitment_tool(
                 commitment_id=commitment_id,
                 workspace_id=str(ws_id),
             )
@@ -166,7 +180,9 @@ async def call_mcp_tool(
         elif tool_name == "create_update_draft":
             commitment_id = args.get("commitment_id")
             if not commitment_id:
-                raise HTTPException(status_code=400, detail="Missing required argument 'commitment_id'")
+                raise HTTPException(
+                    status_code=400, detail="Missing required argument 'commitment_id'"
+                )
             data = await create_update_draft_tool(
                 commitment_id=commitment_id,
                 proposed_message=args.get("proposed_message"),

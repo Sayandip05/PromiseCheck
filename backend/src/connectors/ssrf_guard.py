@@ -50,6 +50,11 @@ def _is_blocked_ip(ip_str: str) -> bool:
     """Return True if the resolved IP address falls in a blocked network range."""
     try:
         addr = ipaddress.ip_address(ip_str)
+        # Unmap IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) so they are checked
+        # against the IPv4 blocklist. Without this, an attacker could bypass the
+        # guard by targeting e.g. ::ffff:127.0.0.1 or ::ffff:169.254.169.254.
+        if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+            addr = addr.ipv4_mapped
         return any(addr in net for net in _BLOCKED_NETWORKS)
     except ValueError:
         return True  # Unparseable IP — block by default

@@ -90,8 +90,28 @@ async def test_all_connectors_fail_fast_when_unconfigured():
     drive = GoogleDriveConnector()
     assert drive.is_configured is False
     assert await drive.verify_credentials({}) is False
-    docs = await drive.search_documents("test")
-    assert len(docs) >= 1
+    with pytest.raises(ConnectorNotConfiguredError):
+        await drive.search_documents("test")
+
+    # 8. Google Meet
+    meet = GoogleMeetConnector()
+    assert meet.is_configured is False
+    with pytest.raises(ConnectorNotConfiguredError):
+        await meet.list_recent_meetings()
+
+    # 9. Email
+    email = EmailConnector()
+    assert email.is_configured is False
+    with pytest.raises(ConnectorNotConfiguredError):
+        await email.send_email("client@acme.corp", "Update", "<p>Body</p>")
+
+    # 10. External MCP
+    mcp = ExternalMCPConnector()
+    assert mcp.is_configured is False
+    with pytest.raises(ConnectorNotConfiguredError):
+        await mcp.list_tools()
+    with pytest.raises(ConnectorNotConfiguredError):
+        await mcp.call_tool("any_tool", {})
 
 
 

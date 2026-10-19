@@ -68,10 +68,6 @@ def test_ssrf_is_blocked_ip_detects_all_internal_ranges(blocked_ip: str):
     assert _is_blocked_ip(blocked_ip) is True, f"IP {blocked_ip} should be blocked"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-6: ssrf_guard fails to unmap IPv4-mapped IPv6 addresses (::ffff:x.x.x.x), allowing SSRF bypass to loopback and cloud metadata",
-)
 @pytest.mark.parametrize(
     "ipv4_mapped_ip",
     [

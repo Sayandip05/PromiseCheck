@@ -15,6 +15,7 @@ with cryptocurrency / blockchain concepts.
 import base64
 import hashlib
 from typing import Any, Optional
+
 from cryptography.fernet import Fernet, InvalidToken
 
 from core.config import settings
@@ -38,14 +39,34 @@ SENSITIVE_INTEGRATION_KEYS: frozenset[str] = frozenset({
 SENSITIVE_KEYS = SENSITIVE_INTEGRATION_KEYS
 
 
+# Development-only fallback.  It is intentionally public; production refuses to
+# use it (see Settings.validate_production_safety and the guard below).
+_DEV_FALLBACK_ENCRYPTION_KEY = "promisecheck-default-fallback-encryption-key-32b"
+
+
 def _get_encryption_key() -> bytes:
-    """Derive a URL-safe base64-encoded 32-byte Fernet key from application secrets."""
+    """Derive a URL-safe base64-encoded 32-byte Fernet key from the dedicated setting.
+
+    The encryption key is intentionally independent from the JWT / session
+    signing keys: rotating sessions must not make stored tenant credentials
+    undecryptable, and a missing encryption key must never be silently replaced
+    by a hardcoded constant in production.
+    """
     raw_key = (
-        getattr(settings, "ENCRYPTION_KEY", None)
-        or getattr(settings, "SECRET_KEY", None)
-        or getattr(settings, "JWT_SECRET_KEY", None)
-        or "promisecheck-default-fallback-encryption-key-32b"
+        getattr(settings, "SECRET_ENCRYPTION_KEY", None)
+        or getattr(settings, "ENCRYPTION_KEY", None)
     )
+    if not raw_key:
+        if settings.APP_ENV.lower() == "production":
+            raise RuntimeError(
+                "SECRET_ENCRYPTION_KEY is not configured; refusing to encrypt tenant "
+                "secrets with a hardcoded key in production."
+            )
+        logger.warning(
+            "SECRET_ENCRYPTION_KEY is not set; using the development-only fallback "
+            "encryption key. Set SECRET_ENCRYPTION_KEY before deploying."
+        )
+        raw_key = _DEV_FALLBACK_ENCRYPTION_KEY
     digest = hashlib.sha256(raw_key.encode("utf-8")).digest()
     return base64.urlsafe_b64encode(digest)
 

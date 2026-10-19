@@ -88,6 +88,7 @@ PUBLIC_ROUTE_ALLOWLIST: set[tuple[str, str]] = {
     ("POST", "/api/v1/auth/google"),
     ("POST", "/api/v1/auth/logout"),
     ("GET", "/api/v1/integrations/google/callback"),
+    ("GET", "/api/v1/operations/integrations/google/callback"),
     ("POST", "/api/v1/workspaces"),
     ("GET", "/api/v1/workspaces/{workspace_id}"),
     ("GET", "/api/v1/workspaces/{workspace_id}/members"),
@@ -195,10 +196,6 @@ async def test_cross_tenant_commitments_isolation(
     assert comm_b.status == "awaiting-review"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-2: src/modules/commitments/service.py:279,368,418 returns 403 instead of 404 on cross-tenant PATCH/DELETE/CONFIRM, leaking commitment existence",
-)
 @pytest.mark.asyncio
 async def test_cross_tenant_commitments_patch_and_delete_returns_404_not_403(
     two_tenants: TwoTenantsContext,
@@ -260,10 +257,6 @@ async def test_cross_tenant_customers_list_and_read_isolation(
     assert "Beta Secret Client LLC" not in res_get.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-1: src/modules/customers/service.py:132 returns 403 instead of 404 on cross-tenant access, leaking customer existence",
-)
 @pytest.mark.asyncio
 async def test_cross_tenant_customer_get_returns_404_not_403(
     two_tenants: TwoTenantsContext,
@@ -291,10 +284,6 @@ async def test_cross_tenant_customer_get_returns_404_not_403(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-3: src/modules/commitments/models.py:76 DeliveryEvidence model columns do not match PostgreSQL migration 0001 schema, causing UndefinedColumnError",
-)
 @pytest.mark.asyncio
 async def test_cross_tenant_delivery_evidence_isolation(
     two_tenants: TwoTenantsContext,

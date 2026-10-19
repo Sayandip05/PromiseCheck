@@ -3,7 +3,8 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/operations", tags=["Operations"])
@@ -43,3 +44,17 @@ async def get_prometheus_metrics() -> PlainTextResponse:
         content=metrics.generate_prometheus_metrics(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )
+
+
+@router.get("/integrations/google/callback")
+async def legacy_google_oauth_callback(request: Request) -> RedirectResponse:
+    """Legacy Google OAuth callback alias.
+
+    Retained for the redirect URI registered in the Google Cloud Console
+    (``/api/v1/operations/integrations/google/callback``). Permanently redirects
+    to the canonical integrations callback, preserving the query string.
+    """
+    target = "/api/v1/integrations/google/callback"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return RedirectResponse(url=target, status_code=307)

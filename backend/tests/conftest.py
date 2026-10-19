@@ -11,6 +11,7 @@ Provides core fixtures for unit and integration testing:
 """
 
 import os
+import sys
 import uuid
 from typing import AsyncGenerator, Callable, Generator
 import pytest
@@ -19,17 +20,15 @@ from freezegun import freeze_time
 import respx
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from src.main import app
+import core.database as _core_db
 from core.database import _sync_engine, get_db
 from core.security import Role, create_access_token, hash_password
-from modules.iam.models import Invitation, Membership, User, Workspace, WorkspaceMember
-from sqlalchemy import Enum as SAEnum
+from modules.iam.models import Membership, User, Workspace, WorkspaceMember
 
-# Align SQLAlchemy Enum with PostgreSQL lowercase enum values defined in migration 0001
-Membership.__table__.c.role.type = SAEnum(Role, name="role", values_callable=lambda x: [e.value for e in x])
-Invitation.__table__.c.role.type = SAEnum(Role, name="role", values_callable=lambda x: [e.value for e in x])
 from tests.fixtures.database import (
     PostgresTestManager,
     TenantContext,
@@ -59,6 +58,35 @@ from tests.fixtures.fakes import (
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Test-only engine hardening.
+#
+# The application's global async engine is a *pooled* engine created at import
+# time. Under pytest each ``TestClient`` can drive its own event loop, so
+# connections cached in that pool become bound to a closed loop and later
+# requests fail with "got Future ... attached to a different loop" (surfaced as
+# HTTP 500). Repointing the global engine at ``NullPool`` gives every request a
+# fresh connection native to the current loop. Production behaviour is
+# untouched — this only ever runs from the pytest conftest.
+# ─────────────────────────────────────────────────────────────────────────────
+def _use_nullpool_async_engine() -> None:
+    _old_engine = _core_db.async_engine
+    _kwargs: dict = {"poolclass": NullPool, "echo": False}
+    if _core_db._db_url.startswith("sqlite"):
+        _kwargs["connect_args"] = {"check_same_thread": False}
+    _new_engine = create_async_engine(_core_db._db_url, **_kwargs)
+    _core_db.async_engine = _new_engine
+    _core_db.AsyncSessionLocal.configure(bind=_new_engine)
+    # ``src.main`` holds a direct reference (`from core.database import async_engine`)
+    # used on shutdown; keep it pointing at the engine actually in use.
+    _main_module = sys.modules.get("src.main")
+    if _main_module is not None and getattr(_main_module, "async_engine", None) is _old_engine:
+        _main_module.async_engine = _new_engine
+
+
+_use_nullpool_async_engine()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Backward-Compatible Fixtures (Unchanged for existing 66 tests)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -70,8 +98,14 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def auth_headers() -> dict[str, str]:
-    """Provision a clean test user, workspace, and valid bearer token."""
+def auth_headers(postgres_manager: PostgresTestManager) -> dict[str, str]:
+    """Provision a clean test user, workspace, and valid bearer token.
+
+    Depends on ``postgres_manager`` so the PostgreSQL schema (Alembic migrations)
+    is guaranteed to exist before any rows are written — otherwise this fixture
+    fails with ``relation "users" does not exist`` when the test file is run in
+    isolation or before any other DB-backed test.
+    """
     with Session(_sync_engine) as session:
         user = User(
             email=f"suite_{uuid.uuid4().hex[:8]}@example.com",

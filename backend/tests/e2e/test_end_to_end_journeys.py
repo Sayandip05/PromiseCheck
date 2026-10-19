@@ -145,10 +145,6 @@ async def test_e2e_journey_1_full_lifecycle(
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-3: DeliveryEvidence table in migration 0001 is missing workspace_id column, causing 500 error on Postgres.",
-)
 async def test_e2e_journey_1_delivery_evidence_endpoint_hits_bug_3(
     app_client: TestClient,
     db_session: AsyncSession,

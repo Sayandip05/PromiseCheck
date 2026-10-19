@@ -276,10 +276,8 @@ class CommitmentService:
             raise HTTPException(status_code=404, detail="Commitment not found")
 
         if c.workspace_id != workspace_id:
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have permission to modify this commitment.",
-            )
+            # 404 (not 403) so a foreign tenant cannot probe commitment existence.
+            raise HTTPException(status_code=404, detail="Commitment not found")
 
         # OCC validation
         current_etag = f'W/"{c.id}:{int(c.updated_at.timestamp())}"'
@@ -364,10 +362,8 @@ class CommitmentService:
             raise HTTPException(status_code=404, detail="Commitment not found")
 
         if c.workspace_id != workspace_id:
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have permission to confirm this commitment.",
-            )
+            # 404 (not 403) so a foreign tenant cannot probe commitment existence.
+            raise HTTPException(status_code=404, detail="Commitment not found")
 
         c.status = "confirmed"
         c.status_label = "Confirmed"
@@ -415,10 +411,8 @@ class CommitmentService:
             raise HTTPException(status_code=404, detail="Commitment not found")
 
         if c.workspace_id != workspace_id:
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have permission to delete this commitment.",
-            )
+            # 404 (not 403) so a foreign tenant cannot probe commitment existence.
+            raise HTTPException(status_code=404, detail="Commitment not found")
 
         c_title = c.title
         await db.delete(c)

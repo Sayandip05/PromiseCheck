@@ -4,11 +4,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.risk_investigator import InvestigationAgent
 from core.redis import publish_event
 from modules.audit import record_audit_event
 from modules.commitments.service import CommitmentService
+from modules.commitments.tickets.service import EngineeringService
 
 
 class RiskService:
@@ -40,6 +43,64 @@ class RiskService:
                 "reason": reason,
             })
         return assessments
+
+    @staticmethod
+    async def investigate_commitment(
+        db: AsyncSession,
+        workspace_id: uuid.UUID,
+        commitment_id: uuid.UUID,
+    ) -> dict[str, Any]:
+        """Run the bounded InvestigationAgent against a single workspace commitment.
+
+        The investigation loads the commitment, cross-references its linked
+        Jira/Linear ticket (when configured), and returns a structured finding
+        with a recommended mitigation step.  Tracker failures degrade to
+        findings rather than failing the whole investigation.
+        """
+        commitment = await CommitmentService.get_by_id(db, commitment_id, workspace_id)
+        if not commitment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Commitment not found",
+            )
+
+        engineering_evidence = commitment.engineering_evidence_json or {}
+        linked_tickets = [
+            t for t in (engineering_evidence.get("tickets") or []) if isinstance(t, dict)
+        ]
+        provider = "jira"
+        if linked_tickets and linked_tickets[0].get("tracker"):
+            provider = str(linked_tickets[0]["tracker"]).lower()
+
+        due_date = None
+        if commitment.due_date:
+            due_date = commitment.due_date.isoformat()
+        elif commitment.promised_date:
+            due_date = commitment.promised_date.isoformat()
+
+        context: dict[str, Any] = {
+            "title": commitment.title,
+            "customer": commitment.customer_name,
+            "status": commitment.status,
+            "due_date": due_date,
+            "promised_by": commitment.promised_by,
+            "conflict_days": commitment.conflict_days,
+            "ticket_key": commitment.ticket_id,
+            "ticket_provider": provider,
+            "engineering_evidence": engineering_evidence,
+        }
+
+        async def _ticket_lookup(tracker: str, key: str) -> dict[str, Any]:
+            return await EngineeringService.get_remote_ticket_status(
+                db, workspace_id, tracker, key
+            )
+
+        agent = InvestigationAgent()
+        return await agent.investigate_commitment(
+            str(commitment.id),
+            context=context,
+            ticket_lookup=_ticket_lookup,
+        )
 
     @staticmethod
     async def evaluate_workspace_risk(

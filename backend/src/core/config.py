@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = ""
     JWT_SECRET_KEY: str = ""
     SESSION_SIGNING_KEY: str = ""
+    # Canonical key used to encrypt tenant integration credentials at rest.
+    # ENCRYPTION_KEY is accepted as a legacy alias only; new deployments must
+    # set SECRET_ENCRYPTION_KEY.
+    SECRET_ENCRYPTION_KEY: str = ""
+    ENCRYPTION_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -91,6 +96,25 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Unsafe production default: CORS_ORIGINS must not contain "
                     "wildcard '*' in production."
+                )
+
+            # Encryption must never silently fall back to a hardcoded key in
+            # production.  This is deliberately independent of the session
+            # signing key so a deploy that sets only SESSION_SIGNING_KEY fails
+            # loudly instead of encrypting tenant tokens with a public constant.
+            encryption_key = self.SECRET_ENCRYPTION_KEY or self.ENCRYPTION_KEY
+            if (
+                not encryption_key
+                or encryption_key
+                in (
+                    "promisecheck-default-fallback-encryption-key-32b",
+                    "dev-insecure-encryption-key-change-me",
+                )
+                or len(encryption_key) < 32
+            ):
+                raise ValueError(
+                    "Unsafe production default: SECRET_ENCRYPTION_KEY must be a "
+                    "secure random string of at least 32 characters in production."
                 )
         return self
 

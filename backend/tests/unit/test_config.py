@@ -33,13 +33,26 @@ def test_production_safety_enforcement() -> None:
         Settings(
             APP_ENV="production",
             SESSION_SIGNING_KEY="a" * 32,
+            SECRET_ENCRYPTION_KEY="b" * 32,
             CORS_ORIGINS=["*"],
+        )
+
+    # Production without a dedicated encryption key must fail: session signing
+    # and secret encryption are independent concerns.
+    with pytest.raises(ValueError, match="SECRET_ENCRYPTION_KEY must be a secure random string"):
+        Settings(
+            APP_ENV="production",
+            SESSION_SIGNING_KEY="a" * 32,
+            SECRET_ENCRYPTION_KEY="",
+            ENCRYPTION_KEY="",
+            CORS_ORIGINS=["https://app.promisecheck.com"],
         )
 
     # Safe production settings must pass
     safe_settings = Settings(
         APP_ENV="production",
         SESSION_SIGNING_KEY="super-secret-production-random-token-32chars",
+        SECRET_ENCRYPTION_KEY="a-dedicated-production-encryption-key-32chars",
         CORS_ORIGINS=["https://app.promisecheck.com"],
     )
     assert safe_settings.APP_ENV == "production"

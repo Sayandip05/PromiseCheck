@@ -602,6 +602,11 @@ async def get_google_authorize_url(
     callback_uri = redirect_uri or default_callback
     state = f"{ws_id}:{uuid.uuid4().hex[:12]}"
 
+    # Persist the issued state server-side (single-use, short TTL) so the callback
+    # can reject forged or replayed state tokens. This is the CSRF defence for the
+    # OAuth redirect flow.
+    await set_with_ttl(f"oauth_state:{state}", str(ws_id), ttl_seconds=600)
+
     auth_url = build_authorization_url(redirect_uri=callback_uri, state=state)
     return GoogleAuthorizeResponse(
         authorization_url=auth_url,
@@ -651,6 +656,33 @@ async def google_oauth_callback_get(
             """,
             status_code=400,
         )
+
+    # CSRF protection: only accept a state value that this server issued and that
+    # has not already been consumed. Forged or replayed states fail closed.
+    stored_ws_id: Optional[str] = None
+    if state:
+        try:
+            stored_ws_id = await get_value(f"oauth_state:{state}")
+        except Exception:
+            stored_ws_id = None
+    if not stored_ws_id or stored_ws_id != str(ws_id):
+        logger.warning(f"[Google Callback] Rejected unissued/replayed OAuth state for workspace {ws_id}")
+        return HTMLResponse(
+            content="""
+            <html><body style="font-family:sans-serif;text-align:center;padding:50px;">
+                <h3 style="color:#e11d48;">Invalid or replayed state</h3>
+                <p>The OAuth state parameter was not issued by this server or has already been used.</p>
+                <script>setTimeout(function() { window.close(); }, 4000);</script>
+            </body></html>
+            """,
+            status_code=400,
+        )
+
+    # Single-use: consume the validated state so it cannot be replayed.
+    try:
+        await delete_key(f"oauth_state:{state}")
+    except Exception:
+        pass
 
     callback_uri = f"{settings.API_BASE_URL.rstrip('/')}/api/v1/integrations/google/callback"
     try:

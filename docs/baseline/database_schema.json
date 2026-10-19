@@ -1,4 +1,80 @@
 {
+  "approvals": {
+    "columns": [
+      {
+        "name": "approver_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "decided_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "decision",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "draft_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "expected_content_hash",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "rationale",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "requested_by",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
   "audit_events": {
     "columns": [
       {
@@ -54,6 +130,76 @@
         "nullable": false,
         "primary_key": false,
         "type": "VARCHAR(100)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "commitment_tickets": {
+    "columns": [
+      {
+        "name": "commitment_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "confidence",
+        "nullable": false,
+        "primary_key": false,
+        "type": "FLOAT"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "required_for_delivery",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "reviewed_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "reviewed_by",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "ticket_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
       },
       {
         "name": "updated_at",
@@ -311,6 +457,94 @@
       }
     ]
   },
+  "deletion_jobs": {
+    "columns": [
+      {
+        "name": "completed_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "error_message",
+        "nullable": true,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "reason",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(500)"
+      },
+      {
+        "name": "requested_by",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "resource_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "resource_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "started_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "tombstone_hash",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
   "delivery_evidences": {
     "columns": [
       {
@@ -378,6 +612,210 @@
         "nullable": false,
         "primary_key": false,
         "type": "VARCHAR(255)"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "dependencies": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "dependency_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "depends_on_ticket_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "ticket_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "evidence_links": {
+    "columns": [
+      {
+        "name": "commitment_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "confidence",
+        "nullable": false,
+        "primary_key": false,
+        "type": "FLOAT"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "quote_end",
+        "nullable": true,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "quote_start",
+        "nullable": true,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "relation",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "source_segment_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "verified_by",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "external_mcp_servers": {
+    "columns": [
+      {
+        "name": "allowed_tools",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "auth_type",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "config_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "enabled",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "endpoint_url",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(1000)"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "last_verified_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "transport",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(20)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
       },
       {
         "name": "workspace_id",
@@ -567,6 +1005,82 @@
       }
     ]
   },
+  "mcp_grants": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "expires_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "granted_by",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "revoked_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "scope",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "server_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "tool_name",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "user_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
   "memberships": {
     "columns": [
       {
@@ -607,6 +1121,170 @@
       }
     ]
   },
+  "notification_attempts": {
+    "columns": [
+      {
+        "name": "approval_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "attempted_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "channel",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "draft_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "error_message",
+        "nullable": true,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "provider_message_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "request_fingerprint",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "notification_drafts": {
+    "columns": [
+      {
+        "name": "body",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "channel",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "commitment_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "content_hash",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "created_by",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "recipient",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "subject",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(500)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
   "outbox_events": {
     "columns": [
       {
@@ -632,6 +1310,12 @@
         "nullable": false,
         "primary_key": true,
         "type": "UUID"
+      },
+      {
+        "name": "next_retry_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
       },
       {
         "name": "payload",
@@ -763,6 +1447,334 @@
       },
       {
         "name": "user_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "source_documents": {
+    "columns": [
+      {
+        "name": "author",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "deleted_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "integration_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "mime_type",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "provider",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "provider_document_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "source_updated_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "title",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(500)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "uri",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(1000)"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "source_segments": {
+    "columns": [
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "document_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "end_offset",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "occurred_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "segment_index",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "speaker",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "start_offset",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "text",
+        "nullable": false,
+        "primary_key": false,
+        "type": "TEXT"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "version_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "source_versions": {
+    "columns": [
+      {
+        "name": "content_hash",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "document_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "fetched_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "is_current",
+        "nullable": false,
+        "primary_key": false,
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "version_number",
+        "nullable": false,
+        "primary_key": false,
+        "type": "INTEGER"
+      },
+      {
+        "name": "workspace_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "UUID"
+      }
+    ]
+  },
+  "tickets": {
+    "columns": [
+      {
+        "name": "assignee",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "created_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "id",
+        "nullable": false,
+        "primary_key": true,
+        "type": "UUID"
+      },
+      {
+        "name": "integration_id",
+        "nullable": true,
+        "primary_key": false,
+        "type": "UUID"
+      },
+      {
+        "name": "key",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "metadata_json",
+        "nullable": false,
+        "primary_key": false,
+        "type": "JSONB"
+      },
+      {
+        "name": "provider",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "provider_ticket_id",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(255)"
+      },
+      {
+        "name": "source_updated_at",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "status",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "status_category",
+        "nullable": true,
+        "primary_key": false,
+        "type": "VARCHAR(50)"
+      },
+      {
+        "name": "target_date",
+        "nullable": true,
+        "primary_key": false,
+        "type": "DATE"
+      },
+      {
+        "name": "title",
+        "nullable": false,
+        "primary_key": false,
+        "type": "VARCHAR(500)"
+      },
+      {
+        "name": "updated_at",
+        "nullable": false,
+        "primary_key": false,
+        "type": "DATETIME"
+      },
+      {
+        "name": "workspace_id",
         "nullable": false,
         "primary_key": false,
         "type": "UUID"

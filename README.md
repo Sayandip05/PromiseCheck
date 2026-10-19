@@ -252,20 +252,17 @@ flowchart TD
 
 | Module | Owns |
 | --- | --- |
-| `identity` | Identity links, sessions and login callbacks. |
-| `workspaces` | Memberships, invitations, roles, teams, record grants. |
-| `integrations` | Credentials references, selected resources, sync cursors, subscriptions and connector lifecycle. |
-| `ingestion` | Event receipts, uploaded source records, normalized segments and import jobs. |
-| `customers` | Accounts, identities, reviewed domain mapping and assigned owners. |
-| `commitments` | Candidates, confirmed promises, evidence links, immutable revisions and transitions. |
-| `engineering` | Ticket snapshots, project configuration, delivery-field mapping and dependencies. |
-| `risk` | Current risk assessments and deterministic evaluation policy. |
-| `delivery` | Release/customer enablement evidence and verified fulfillment. |
-| `notifications` | Internal alerts, exact message approvals, recipients and delivery attempts. |
-| `ai` | Extraction, retrieval, matching, investigation, drafts, prompt/model versions and evaluations. |
-| `mcp` | Server tools, client gateway, authorization context, external server configuration and contracts. |
+| `iam` | Users, linked identities, sessions, workspaces, memberships, invitations and roles. |
+| `customers` | Customer accounts, owners, tiering and health metrics. |
+| `commitments` | Commitment lifecycle, evidence links, risk assessment, tickets and delivery evidence. |
+| `ingestion` | Uploads, transcript parsing, source documents/versions/segments and extraction jobs. |
+| `integrations` | Connector credentials, sync state, and external MCP server/grant allowlists. |
+| `notifications` | Internal alerts, exact message approvals, drafts and delivery attempts. |
 | `audit` | Append-only application audit events and privileged access records. |
-| `operations` | Jobs, outbox, quotas, scheduling, retention and operational status. |
+| `retention` | Data-deletion jobs and tombstones. |
+| `ai` | Extraction, investigation, prompt/model versions and evaluations. |
+| `api/transports/mcp` | MCP server tools, client gateway, and external server contracts. |
+| `jobs` | Celery application, task routing, and the transactional outbox dispatcher. |
 
 ## Integration catalog
 
@@ -334,51 +331,49 @@ PromiseCheck/
       main.py                  FastAPI application factory, lifespan, CORS, and router registration
       core/                    Shared platform infrastructure
         config.py              Pydantic v2 settings, Twelve-Factor external configuration
-        database.py            SQLAlchemy async engine and session factory
-        security.py            JWT authentication and password hashing utilities
+        database.py            SQLAlchemy async engine, session factory, and tenant mixin
+        security.py            JWT authentication, RBAC roles, and password hashing
         logging.py             Standard-stream structured logging setup
+        secret_encryption.py   Fernet envelope encryption for tenant credentials at rest
+        redis.py               Redis client, Pub/Sub, and SSE event publishing
+        outbox/                Transactional outbox models and event registry
+      api/                     HTTP surface (thin transport adapters)
+        system/router.py       Health, metrics, operations status, and legacy redirects
+        transports/mcp/        MCP server, tool implementations, and client gateway
+        transports/realtime/   Server-Sent Events streaming transport
       modules/                 Vertical business capability slices
-        identity/              Users, authentication, session lifecycle
-        workspaces/            Tenant isolation, memberships, and roles
-        commitments/           Commitment lifecycle, revisions, evidence matching
-        customers/             Customer accounts, domain mappings
-        engineering/           Jira & Linear ticket synchronization, field mappings
-        risk/                  Deadline analysis and conflict detection
-        delivery/              Fulfillment verification and owner attestation
-        notifications/         Notification drafting, approval flows, delivery state
-        ingestion/             Meeting uploads, webhook processing, transcript parsing
+        iam/                   Users, identities, sessions, workspaces, memberships, invitations
+        customers/             Customer accounts, owners, and health metrics
+        commitments/           Commitment lifecycle, evidence, risk, tickets, and delivery
+        ingestion/             Uploads, transcript parsing, source lineage, extraction jobs
+        integrations/          Connector credentials, sync state, external MCP servers and grants
+        notifications/         Alerts, exact-message approvals, drafts, and delivery attempts
         audit/                 Audit trails and immutable access logs
-        operations/            Tenant health, usage budgets, and operations
+        retention/             Data-deletion jobs and tombstones
       connectors/              External integration adapters
-        base.py                Abstract connector interface
+        connector_interface.py Abstract connector contract and domain exceptions
+        google_auth.py         Google OAuth authorization-code and token exchange
         google_calendar.py     Google Calendar API adapter
         google_meet.py         Google Meet API adapter
         google_drive.py        Google Drive API adapter
         gmail.py               Gmail API adapter
-        recall.py              Recall.ai capture adapter
         speech_to_text.py      Audio transcription adapter
         jira.py                Atlassian Jira REST adapter
         linear.py              Linear GraphQL adapter
         slack.py               Slack notifications adapter
         email.py               Transactional email adapter
         external_mcp.py        External Model Context Protocol client adapter
+        ssrf_guard.py          SSRF protection for outbound requests
       ai/                      Model integration layer
-        service.py             Prompt composition and LLM extraction service
+        client.py              Hosted LLM (Groq) client
+        promise_extractor.py   Transcript to commitment extraction
+        risk_investigator.py   Bounded, tool-using commitment risk investigation agent
         prompts.py             Versioned extraction and matching prompts
-        router.py              AI evaluation and ad-hoc extraction endpoints
-      mcp/                     Model Context Protocol support
-        server.py              PromiseCheck MCP tool and resource provider
-        client.py              Controlled external MCP client connection
-        router.py              MCP HTTP endpoint (/mcp)
       jobs/                    Asynchronous workflow execution
-        celery_app.py          Centralized Celery application and task registration
-        dispatcher.py          Transactional outbox event dispatcher
-        tasks.py               Background task definitions
-      entrypoints/             Process entrypoint scripts
-        worker.py              Celery worker process
-        scheduler.py           Celery Beat periodic scheduler process
-        dispatcher.py          Outbox polling dispatcher process
-        mcp_server.py          Standalone MCP server runner
+        celery_app.py          Centralized Celery application and task routing
+        celery_stats.py        Worker queue and task introspection
+        outbox_dispatcher.py   Transactional outbox polling dispatcher
+      scripts/                 Operational one-off scripts (demo seed data)
     tests/
       conftest.py              Pytest fixtures and test client setup
       unit/                    Unit tests for config, health, security, and packages
@@ -425,14 +420,14 @@ Pin supported dependency versions in lockfiles during implementation. No package
 | Group | Proposed keys | Handling |
 | --- | --- | --- |
 | App | `APP_ENV`, `PUBLIC_APP_URL`, `API_BASE_URL`, `DEFAULT_TIMEZONE` | Non-secret configuration. |
-| Identity | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `SESSION_SIGNING_KEY` | Secret values remain server-side. |
+| Identity | `SESSION_SIGNING_KEY`, `SECRET_KEY`, `JWT_SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Secret values remain server-side. |
 | Data | `DATABASE_URL`, `REDIS_URL`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ENDPOINT` | Credentials from secret manager or workload identity. |
-| Encryption | `KMS_KEY_ID` | Envelope encryption for provider tokens. |
+| Encryption | `SECRET_ENCRYPTION_KEY` | Dedicated envelope-encryption key for provider tokens (never derived from the session key). |
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_PUBSUB_TOPIC`, `GOOGLE_PUBSUB_AUDIENCE` | Scopes configured per selected capability. |
 | Capture | `RECALL_API_KEY`, `RECALL_REGION`, `SPEECH_PROVIDER`, `SPEECH_API_KEY` | Capture access and tenant usage budgets required. |
 | Trackers | `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET`, `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` | Per-connection OAuth grants stored encrypted. |
-| Alerts | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`, `EMAIL_PROVIDER_API_KEY` | Per-destination access and sending policy. |
-| AI | `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`, `EMBEDDING_MODEL`, `AI_RUN_COST_LIMIT` | Server-only values; no production transcript logging. |
+| Alerts | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`, `RESEND_API_KEY`, `EMAIL_API_KEY`, `EMAIL_FROM` | Per-destination access and sending policy. |
+| AI | `LLM_PROVIDER`, `LLM_MODEL`, `GROQ_API_KEY`, `LLM_API_KEY`, `EMBEDDING_MODEL`, `AI_RUN_COST_LIMIT` | Server-only values; no production transcript logging. |
 | MCP | `MCP_PUBLIC_URL`, `MCP_AUTH_ISSUER`, `MCP_AUDIENCE` | Tenant-specific external server configurations in database. |
 | Monitoring | `OTEL_EXPORTER_OTLP_ENDPOINT`, `ERROR_REPORTING_DSN` | Redaction before export. |
 
@@ -454,7 +449,7 @@ docker compose up --build
 ```
 - Frontend: `http://localhost:3000`
 - Backend API & OpenAPI Docs: `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/health/ready`
+- Health check: `http://localhost:8000/api/v1/health` (liveness: `http://localhost:8000/healthz`)
 
 #### 2. Local backend development
 
@@ -470,30 +465,35 @@ pip install -r requirements.txt
 cd backend
 alembic upgrade head
 
-# Option A: Start backend via root convenience entrypoint
+# Option A: Start backend via the convenience entrypoint (recommended)
+# Listens on PORT (default 8001) — matches frontend/.env (VITE_API_BASE_URL=http://localhost:8001/api/v1)
 python main.py
 
 # Option B: Start backend via uvicorn with live reload
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+# IMPORTANT: keep this port in sync with frontend/.env VITE_API_BASE_URL.
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8001
 ```
+
+> Port note: local development uses **8001** so it matches `frontend/.env`.
+> Inside Docker Compose the backend listens on **8000** (`docker-compose.yml`), and the
+> compose frontend service sets `VITE_API_BASE_URL=http://localhost:8000/api/v1` accordingly.
 
 #### 3. Running background processes & workers
 Background workers and periodic dispatchers can be run from the `backend/` directory:
 
 ```bash
-cd backend
+cd backend/src
 
 # Celery Worker (executes async jobs and ingestion tasks)
-python src/entrypoints/worker.py
+celery -A jobs.celery_app.celery_app worker --loglevel=info -Q high_priority,default,ingestion -c 4
 
-# Celery Beat (schedules recurring health checks and reconciliation)
-python src/entrypoints/scheduler.py
+# Celery Beat (schedules recurring deadline scans and reconciliation)
+celery -A jobs.celery_app.celery_app beat --loglevel=info
 
 # Outbox Dispatcher (polls outbox events and pushes to message broker)
-python src/entrypoints/dispatcher.py
+python -m jobs.outbox_dispatcher
 
-# Standalone MCP Server
-python src/entrypoints/mcp_server.py
+# The MCP server is mounted inside the API process (see /api/v1/mcp and /mcp).
 ```
 
 #### 4. Running tests and linter

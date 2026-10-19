@@ -131,6 +131,24 @@ def test_alembic_postgres_migrations_upgrade_downgrade_roundtrip(postgres_manage
         "audit_events",
         "outbox_events",
         "workspace_integrations",
+        # Evidence lineage (FR-07 / NFR-08)
+        "source_documents",
+        "source_versions",
+        "source_segments",
+        "evidence_links",
+        # Ticket sync (FR-11)
+        "tickets",
+        "commitment_tickets",
+        "dependencies",
+        # Approvals & exact-approval sending (FR-13 / FR-14)
+        "notification_drafts",
+        "approvals",
+        "notification_attempts",
+        # MCP surface (FR-17 / FR-18)
+        "external_mcp_servers",
+        "mcp_grants",
+        # Retention & deletion (FR-20 / NFR-13)
+        "deletion_jobs",
     }
 
     with engine.connect() as conn:
@@ -145,8 +163,11 @@ def test_alembic_postgres_migrations_upgrade_downgrade_roundtrip(postgres_manage
         # Ensure all models are loaded in Base.metadata
         import modules.iam.models  # noqa: F401
         import modules.commitments.models  # noqa: F401
+        import modules.commitments.tickets.models  # noqa: F401
         import modules.customers.models  # noqa: F401
         import modules.ingestion.models  # noqa: F401
+        import modules.notifications.models  # noqa: F401
+        import modules.retention.models  # noqa: F401
         import modules.audit.models  # noqa: F401
         import core.outbox.models  # noqa: F401
         import modules.integrations.models  # noqa: F401
@@ -182,6 +203,7 @@ KNOWN_API_ROUTES: Set[str] = {
     "/api/v1/workspaces",
     "/api/v1/workspaces/{workspace_id}",
     "/api/v1/workspaces/{workspace_id}/members",
+    "/api/v1/workspaces/{workspace_id}/invitations",
     # Commitments
     "/api/v1/commitments",
     "/api/v1/commitments/{commitment_id}",
@@ -212,6 +234,7 @@ KNOWN_API_ROUTES: Set[str] = {
     "/api/v1/integrations",
     "/api/v1/integrations/google/authorize",
     "/api/v1/integrations/google/callback",
+    "/api/v1/operations/integrations/google/callback",
     "/api/v1/integrations/google/connect-token",
     "/api/v1/integrations/google/calendar/sync-event",
     "/api/v1/integrations/google/gmail/send-update",

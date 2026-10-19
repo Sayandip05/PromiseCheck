@@ -49,8 +49,11 @@ def collect_database_schema() -> dict:
     try:
         import modules.iam.models  # noqa
         import modules.commitments.models  # noqa
+        import modules.commitments.tickets.models  # noqa
         import modules.customers.models  # noqa
         import modules.ingestion.models  # noqa
+        import modules.notifications.models  # noqa
+        import modules.retention.models  # noqa
         import modules.audit.models  # noqa
         import modules.integrations.models  # noqa
         import core.outbox.models  # noqa

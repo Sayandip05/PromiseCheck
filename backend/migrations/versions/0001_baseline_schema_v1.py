@@ -282,15 +282,19 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("commitment_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("commitment_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("commitment_title", sa.String(255), nullable=False),
+        sa.Column("customer_name", sa.String(255), nullable=False),
         sa.Column("evidence_type", sa.String(50), nullable=False),
-        sa.Column("source_url", sa.String(500), nullable=True),
-        sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column("metadata_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("evidence_title", sa.String(255), nullable=False),
+        sa.Column("evidence_url", sa.String(500), nullable=False, server_default=""),
+        sa.Column("verified_by", sa.String(255), nullable=False, server_default="Team Lead"),
+        sa.Column("notes", sa.Text(), nullable=False, server_default=""),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_delivery_evidences_id"), "delivery_evidences", ["id"], unique=False)
     op.create_index(op.f("ix_delivery_evidences_workspace_id"), "delivery_evidences", ["workspace_id"], unique=False)
+    op.create_index(op.f("ix_delivery_evidences_commitment_id"), "delivery_evidences", ["commitment_id"], unique=False)
 
     # =========================================================================
     # audit_events

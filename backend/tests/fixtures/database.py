@@ -33,6 +33,24 @@ ALL_TABLES = [
     "memberships",
     "workspaces",
     "users",
+    # Evidence lineage (FR-07 / NFR-08)
+    "source_documents",
+    "source_versions",
+    "source_segments",
+    "evidence_links",
+    # Ticket sync (FR-11)
+    "tickets",
+    "commitment_tickets",
+    "dependencies",
+    # Approvals & exact-approval sending (FR-13 / FR-14)
+    "notification_drafts",
+    "approvals",
+    "notification_attempts",
+    # MCP surface (FR-17 / FR-18)
+    "external_mcp_servers",
+    "mcp_grants",
+    # Retention & deletion (FR-20 / NFR-13)
+    "deletion_jobs",
 ]
 
 

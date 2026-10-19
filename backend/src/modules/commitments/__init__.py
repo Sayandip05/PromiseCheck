@@ -12,6 +12,7 @@ from modules.commitments.schemas import (
     PaginatedCommitmentsResponse,
 )
 from modules.commitments.service import CommitmentService, to_dto
+from modules.commitments.tickets.models import CommitmentTicket, Dependency, Ticket
 from modules.commitments.tickets.service import EngineeringService
 
 __all__ = [
@@ -21,6 +22,9 @@ __all__ = [
     "DeliveryService",
     "RiskService",
     "EngineeringService",
+    "Ticket",
+    "CommitmentTicket",
+    "Dependency",
     "to_dto",
     "CommitmentDTO",
     "CommitmentCreateRequest",

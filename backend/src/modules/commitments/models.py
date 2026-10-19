@@ -3,7 +3,18 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,8 +39,12 @@ class Commitment(Base, TenantMixin):
     )
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    customer_name: Mapped[str] = mapped_column(String(255), default="General Customer", nullable=False)
-    customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    customer_name: Mapped[str] = mapped_column(
+        String(255), default="General Customer", nullable=False
+    )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
 
     # Owner info
     owner_name: Mapped[str] = mapped_column(String(255), default="Team Lead", nullable=False)
@@ -81,9 +96,48 @@ class DeliveryEvidence(Base, TenantMixin):
     commitment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     commitment_title: Mapped[str] = mapped_column(String(255), nullable=False)
     customer_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    evidence_type: Mapped[str] = mapped_column(String(50), default="manual_signoff", nullable=False)  # release_notes, pr_merged, manual_signoff
+    evidence_type: Mapped[str] = mapped_column(
+        String(50), default="manual_signoff", nullable=False
+    )  # release_notes, pr_merged, manual_signoff
     evidence_title: Mapped[str] = mapped_column(String(255), nullable=False)
     evidence_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     verified_by: Mapped[str] = mapped_column(String(255), default="Team Lead", nullable=False)
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
+
+class EvidenceLink(Base, TenantMixin):
+    """Grounding link proving a commitment is supported by a specific source segment.
+
+    FR-07 / NFR-08: commitments must never be stored as free-standing quotes.
+    Each link pins the commitment to an immutable source version and offset span
+    so quote-span validation can be enforced.
+    """
+
+    __tablename__ = "evidence_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "commitment_id",
+            "source_segment_id",
+            name="uq_evidence_links_commitment_segment",
+        ),
+        Index("ix_evidence_links_ws_commitment", "workspace_id", "commitment_id"),
+    )
+
+    commitment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("commitments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_segment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_segments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    relation: Mapped[str] = mapped_column(String(50), default="supports", nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    quote_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quote_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)

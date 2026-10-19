@@ -23,3 +23,8 @@ class OutboxEvent(Base, TenantMixin):
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False, index=True)
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Earliest time this row may be retried after a failed dispatch (exponential
+    # backoff). NULL means immediately eligible.
+    next_retry_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )

@@ -129,8 +129,10 @@ class CustomerService:
                 detail="Customer not found",
             )
         if customer.workspace_id != workspace_id:
+            # Return 404 rather than 403 so we never leak the existence of a
+            # customer record belonging to another tenant.
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to view this customer account.",
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found",
             )
         return customer

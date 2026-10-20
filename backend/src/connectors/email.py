@@ -5,7 +5,11 @@ from typing import Any, Optional
 
 import httpx
 
-from connectors.connector_interface import BaseConnector
+from connectors.connector_interface import (
+    BaseConnector,
+    ConnectorDeliveryError,
+    ConnectorNotConfiguredError,
+)
 from core.logging import get_logger
 
 logger = get_logger("connector.email")
@@ -39,36 +43,53 @@ class EmailConnector(BaseConnector):
         subject: str,
         html_content: str,
     ) -> dict[str, Any]:
-        """Send email via Resend API or log to stdout in fluent mode."""
-        if self.is_configured:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    res = await client.post(
-                        "https://api.resend.com/emails",
-                        headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                        json={
-                            "from": self.sender_email,
-                            "to": [to_email],
-                            "subject": subject,
-                            "html": html_content,
-                        },
-                    )
-                    if res.status_code in (200, 201):
-                        return {"status": "sent", "id": res.json().get("id")}
-            except Exception as exc:
-                logger.error(f"[Email Connector] Failed to send email via Resend: {exc}")
+        """Send an email through the Resend API.
 
-        # Fluent pre-credential logging
-        logger.info(f"[Email Mock Delivery] From: {self.sender_email} -> To: {to_email} | Subject: {subject}")
+        Raises ``ConnectorNotConfiguredError`` when no API key is available and
+        ``ConnectorDeliveryError`` when Resend rejects or fails the request.  A
+        notification is never reported as sent unless the provider accepted it.
+        """
+        if not self.api_key:
+            raise ConnectorNotConfiguredError(
+                "Email is not configured; set RESEND_API_KEY or EMAIL_API_KEY."
+            )
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": self.sender_email,
+                        "to": [to_email],
+                        "subject": subject,
+                        "html": html_content,
+                    },
+                )
+        except httpx.HTTPError as exc:
+            raise ConnectorDeliveryError(f"Email delivery request failed: {exc}") from exc
+
+        if res.status_code not in (200, 201):
+            raise ConnectorDeliveryError(
+                f"Resend API returned HTTP {res.status_code}: {res.text[:200]}"
+            )
+        payload = res.json()
         return {
-            "status": "sent_fluent_mock",
+            "status": "sent",
+            "id": payload.get("id"),
             "from": self.sender_email,
             "to": to_email,
             "subject": subject,
         }
 
     async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:
-        return {"status": "active" if self.is_configured else "fluent_mock"}
+        configured = await self.verify_credentials({})
+        status = "active" if configured else "unconfigured"
+        return {"status": status, "provider": self.provider_name}
 
     async def reconcile(self, workspace_id: str) -> dict[str, Any]:
-        return {"status": "synchronized"}
+        configured = await self.verify_credentials({})
+        status = "synchronized" if configured else "unconfigured"
+        return {"status": status, "provider": self.provider_name}

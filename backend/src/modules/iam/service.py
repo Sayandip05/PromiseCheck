@@ -361,10 +361,16 @@ class WorkspaceService:
     @staticmethod
     async def create_workspace(
         db: AsyncSession,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID],
         payload: WorkspaceCreateRequest,
     ) -> Workspace:
-        """Create a new tenant workspace and assign initial admin membership."""
+        """Create a new tenant workspace and assign initial admin membership.
+
+        ``user_id`` is optional because workspace provisioning may be invoked
+        without an authenticated caller. A membership is only created when the
+        referenced user actually exists, preventing a ForeignKeyViolationError
+        from an unpersisted/random identifier.
+        """
         existing = await db.execute(select(Workspace).where(Workspace.slug == payload.slug))
         if existing.scalar_one_or_none():
             raise ValueError(f"Workspace with slug '{payload.slug}' already exists.")
@@ -373,14 +379,19 @@ class WorkspaceService:
         db.add(workspace)
         await db.flush()
 
-        # Add creator as ADMIN if user exists
-        membership = Membership(workspace_id=workspace.id, user_id=user_id, role=Role.ADMIN)
-        db.add(membership)
+        # Add creator as ADMIN only when the user exists in this database.
+        if user_id is not None:
+            user = await db.get(User, user_id)
+            if user is not None:
+                membership = Membership(workspace_id=workspace.id, user_id=user_id, role=Role.ADMIN)
+                db.add(membership)
+
         await db.commit()
         await db.refresh(workspace)
 
         # Bust the workspace ID cache so the user gets the new workspace on next request
-        await invalidate_workspace_cache(user_id)
+        if user_id is not None:
+            await invalidate_workspace_cache(user_id)
         return workspace
 
     @staticmethod

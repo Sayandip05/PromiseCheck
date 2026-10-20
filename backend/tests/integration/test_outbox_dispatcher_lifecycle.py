@@ -354,6 +354,9 @@ async def test_unknown_event_increments_attempts_and_dead_letters_after_5_failur
     monkeypatch.setattr("core.database.AsyncSessionLocal", postgres_manager.session_factory)
     monkeypatch.setattr("jobs.outbox_dispatcher._IDLE_SLEEP", 0.02)
     monkeypatch.setattr("jobs.outbox_dispatcher._BUSY_SLEEP", 0.01)
+    # Collapse the exponential backoff so all 5 attempts happen within the test window;
+    # this test asserts attempt-counting/dead-letter semantics, not retry timing.
+    monkeypatch.setattr("jobs.outbox_dispatcher._BASE_BACKOFF_SECONDS", 0.01)
 
     async with postgres_manager.session_factory() as db:
         ws = await _create_test_workspace(db)
@@ -607,32 +610,25 @@ async def test_batch_size_limit_claims_at_most_batch_limit_rows_per_cycle(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. BUG-5: Poison Event Head-of-Line Blocking and Missing Backoff
+# 8. Poison Event Backoff (BUG-5 fix): next_retry_at prevents head-of-line blocking
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-5: Outbox dispatcher lacks exponential backoff and next_retry_at; "
-    "poison events at queue head repeatedly consume batch limits and delay healthy events",
-)
-async def test_poison_event_at_queue_head_must_not_delay_healthy_events(
+async def test_poison_event_backoff_does_not_delay_healthy_events(
     postgres_manager: PostgresTestManager,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """BUG-5: When a poison event fails at the queue head, the dispatcher must apply exponential backoff
+    """A poison event at the queue head is deferred via exponential backoff.
 
-    (e.g., next_retry_at) so subsequent healthy pending events are dispatched immediately without
-    being delayed by consecutive re-poll cycles of the failing row.
-
-    Currently: The dispatcher has no backoff mechanism; failing rows remain status='pending' and
-    block subsequent events from being dispatched when the query batch limit is constrained.
+    When a failing row is the oldest pending event, the dispatcher must reschedule
+    it (next_retry_at) instead of re-claiming it every cycle, so healthy events
+    behind it dispatch immediately without head-of-line blocking.
     """
-    # Constrain batch size to 1 to demonstrate head-of-line blocking
+    # Constrain batch size to 1 so the head event is the only row claimed per cycle.
     monkeypatch.setattr("jobs.outbox_dispatcher._BATCH_SIZE", 1)
     monkeypatch.setattr("core.database.AsyncSessionLocal", postgres_manager.session_factory)
-    monkeypatch.setattr("jobs.outbox_dispatcher._IDLE_SLEEP", 0.02)
-    monkeypatch.setattr("jobs.outbox_dispatcher._BUSY_SLEEP", 0.01)
+
+    from jobs.outbox_dispatcher import dispatch_once
 
     base_time = datetime.now(timezone.utc) - timedelta(minutes=5)
 
@@ -656,37 +652,28 @@ async def test_poison_event_at_queue_head_must_not_delay_healthy_events(
         )
         db.add_all([poison_ev, healthy_ev])
         await db.commit()
+        poison_id = poison_ev.id
         healthy_id = healthy_ev.id
 
-    # Run exactly one polling cycle
-    from jobs.celery_app import celery_app
-    from jobs.outbox_dispatcher import _dispatch_to_celery
-    from sqlalchemy import update
+    # Cycle 1: claims the oldest (poison) row, which fails and is backed off.
+    assert await dispatch_once() == 0
 
     async with postgres_manager.session_factory() as db:
-        async with db.begin():
-            stmt = (
-                select(OutboxEvent)
-                .where(OutboxEvent.status == "pending")
-                .order_by(OutboxEvent.created_at)
-                .limit(1)
-                .with_for_update(skip_locked=True)
-            )
-            rows = (await db.execute(stmt)).scalars().all()
-            for r in rows:
-                try:
-                    _dispatch_to_celery(celery_app, r)
-                except Exception as err:
-                    p = dict(r.payload or {})
-                    p["dispatch_attempts"] = p.get("dispatch_attempts", 0) + 1
-                    r.payload = p
-
-    # Assert that the healthy event is NOT delayed and was dispatched in cycle 1
-    # Under current code, healthy_ev was NOT processed because poison_ev blocked the queue head!
-    async with postgres_manager.session_factory() as db:
-        healthy_row = await db.get(OutboxEvent, healthy_id)
-        assert healthy_row is not None
-        # This will fail on current code because healthy_row is still 'pending'
-        assert healthy_row.status == "dispatched", (
-            "Healthy event was blocked by poison event at head of queue due to missing backoff"
+        poison_row = await db.get(OutboxEvent, poison_id)
+        assert poison_row.status == "pending"
+        assert poison_row.payload.get("dispatch_attempts") == 1
+        assert poison_row.next_retry_at is not None, (
+            "Poison event must be rescheduled via next_retry_at to avoid head-of-line blocking"
         )
+
+    # Cycle 2: the backed-off poison row is skipped; the healthy event dispatches.
+    assert await dispatch_once() == 1
+
+    async with postgres_manager.session_factory() as db:
+        poison_row = await db.get(OutboxEvent, poison_id)
+        healthy_row = await db.get(OutboxEvent, healthy_id)
+        assert healthy_row.status == "dispatched"
+        assert healthy_row.dispatched_at is not None
+        # The poison row was not re-claimed while within its backoff window.
+        assert poison_row.status == "pending"
+        assert poison_row.payload.get("dispatch_attempts") == 1

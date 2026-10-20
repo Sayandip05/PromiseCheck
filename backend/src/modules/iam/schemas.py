@@ -123,6 +123,9 @@ class MembershipResponse(BaseModel):
     user_id: uuid.UUID
     role: Role
     created_at: datetime
+    # Denormalised user identity for the members list (joined from users).
+    email: str | None = None
+    full_name: str | None = None
 
 
 class InvitationRequest(BaseModel):
@@ -130,6 +133,20 @@ class InvitationRequest(BaseModel):
 
     email: str = Field(min_length=3)
     role: Role = Role.MEMBER
+
+
+class InvitationResponse(BaseModel):
+    """A workspace invitation (pending or accepted)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    email: str
+    role: Role
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None = None
 
 
 

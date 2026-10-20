@@ -124,7 +124,14 @@ class Membership(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    role: Mapped[Role] = mapped_column(Enum(Role), default=Role.MEMBER, nullable=False)
+    role: Mapped[Role] = mapped_column(
+        # Persist the enum *values* ("admin", "member", ...) so they match the
+        # PostgreSQL `role` enum created by migration 0001. SQLAlchemy defaults to
+        # persisting member *names* ("ADMIN"), which silently fails on Postgres.
+        Enum(Role, name="role", values_callable=lambda x: [e.value for e in x]),
+        default=Role.MEMBER,
+        nullable=False,
+    )
 
     workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="memberships")
 
@@ -145,7 +152,11 @@ class Invitation(Base):
         index=True,
     )
     email: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[Role] = mapped_column(Enum(Role), default=Role.MEMBER, nullable=False)
+    role: Mapped[Role] = mapped_column(
+        Enum(Role, name="role", values_callable=lambda x: [e.value for e in x]),
+        default=Role.MEMBER,
+        nullable=False,
+    )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

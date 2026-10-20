@@ -5,7 +5,11 @@ from typing import Any, Optional
 
 import httpx
 
-from connectors.connector_interface import BaseConnector
+from connectors.connector_interface import (
+    BaseConnector,
+    ConnectorDeliveryError,
+    ConnectorNotConfiguredError,
+)
 from core.logging import get_logger
 
 logger = get_logger("connector.google_drive")
@@ -42,40 +46,41 @@ class GoogleDriveConnector(BaseConnector):
             return False
 
     async def search_documents(self, query: str) -> list[dict[str, Any]]:
-        """Search Google Drive documents matching keywords."""
-        if self.is_configured:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    res = await client.get(
-                        "https://www.googleapis.com/drive/v3/files",
-                        headers={"Authorization": f"Bearer {self.access_token}"},
-                        params={"q": f"name contains '{query}' and trashed = false"},
-                    )
-                    if res.status_code == 200:
-                        return res.json().get("files", [])
-            except Exception as exc:
-                logger.error(f"[Google Drive] Failed search: {exc}")
+        """Search Google Drive documents matching keywords.
 
-        # Fluent fallback documents
-        return [
-            {
-                "id": "doc-drive-101",
-                "name": f"Enterprise Master Service Agreement - {query}.pdf",
-                "mimeType": "application/pdf",
-                "modifiedTime": "2026-09-01T12:00:00Z",
-                "source": "fluent_mock",
-            },
-            {
-                "id": "doc-drive-102",
-                "name": f"Q3 Quarterly Deliverables & Scope - {query}.gdoc",
-                "mimeType": "application/vnd.google-apps.document",
-                "modifiedTime": "2026-09-10T16:20:00Z",
-                "source": "fluent_mock",
-            },
-        ]
+        Raises ``ConnectorNotConfiguredError`` when no access token is available
+        and ``ConnectorDeliveryError`` when Google's API fails.  No synthetic
+        documents are ever returned on behalf of an unconfigured integration.
+        """
+        if not self.access_token:
+            raise ConnectorNotConfiguredError(
+                "Google Drive is not configured; connect a Google account or set "
+                "GOOGLE_ACCESS_TOKEN."
+            )
+        # Escape single quotes so a query cannot break out of the Drive q filter.
+        safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(
+                    "https://www.googleapis.com/drive/v3/files",
+                    headers={"Authorization": f"Bearer {self.access_token}"},
+                    params={"q": f"name contains '{safe_query}' and trashed = false"},
+                )
+        except httpx.HTTPError as exc:
+            raise ConnectorDeliveryError(f"Google Drive search failed: {exc}") from exc
+
+        if res.status_code != 200:
+            raise ConnectorDeliveryError(
+                f"Google Drive API returned HTTP {res.status_code}: {res.text[:200]}"
+            )
+        return res.json().get("files", [])
 
     async def initial_sync(self, workspace_id: str, resource_id: str) -> dict[str, Any]:
-        return {"status": "active" if self.is_configured else "fluent_mock"}
+        configured = await self.verify_credentials({})
+        status = "active" if configured else "unconfigured"
+        return {"status": status, "provider": self.provider_name}
 
     async def reconcile(self, workspace_id: str) -> dict[str, Any]:
-        return {"status": "synchronized"}
+        configured = await self.verify_credentials({})
+        status = "synchronized" if configured else "unconfigured"
+        return {"status": status, "provider": self.provider_name}

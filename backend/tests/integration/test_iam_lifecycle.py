@@ -647,10 +647,6 @@ async def test_google_auth_unverified_email_rejected(app_client: TestClient):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG-4: src/modules/iam/router.py:267 uses unpersisted system_user_id = uuid.uuid4(), causing ForeignKeyViolationError on memberships table and 500 error",
-)
 @pytest.mark.asyncio
 async def test_workspace_create_assigns_admin(
     app_client: TestClient,
@@ -793,3 +789,100 @@ async def test_invitation_expiry_and_already_accepted_filtered(db_session: Async
 
     found_acc = await WorkspaceService.get_valid_invitation(db_session, inv_acc.token_hash)
     assert found_acc is None, "Accepted invitation must be excluded by DB query filter"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Workspace roster & invitation API
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_members_list_includes_user_identity(
+    app_client: TestClient,
+    db_session: AsyncSession,
+):
+    """GET /workspaces/{id}/members enriches each row with the member's email and name."""
+    ws = WorkspaceFactory()
+    user = UserFactory(full_name="Roster Person")
+    db_session.add_all([ws, user])
+    await db_session.flush()
+    db_session.add(Membership(workspace_id=ws.id, user_id=user.id, role="member"))
+    await db_session.commit()
+
+    res = app_client.get(f"/api/v1/workspaces/{ws.id}/members")
+    assert res.status_code == 200
+    row = next(r for r in res.json() if r["user_id"] == str(user.id))
+    assert row["email"] == user.email
+    assert row["full_name"] == "Roster Person"
+
+
+@pytest.mark.asyncio
+async def test_workspace_invitation_create_list_and_authorization(
+    app_client: TestClient,
+    db_session: AsyncSession,
+):
+    """Admins can create and list invitations; members and anonymous callers are rejected."""
+    from core.security import Role, create_access_token
+
+    ws = WorkspaceFactory()
+    admin = UserFactory()
+    member = UserFactory()
+    db_session.add_all([ws, admin, member])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            Membership(workspace_id=ws.id, user_id=admin.id, role=Role.ADMIN),
+            Membership(workspace_id=ws.id, user_id=member.id, role=Role.MEMBER),
+        ]
+    )
+    await db_session.commit()
+
+    admin_headers = {
+        "Authorization": f"Bearer {create_access_token(user_id=admin.id, email=admin.email)}",
+        "X-Workspace-Id": str(ws.id),
+    }
+    member_headers = {
+        "Authorization": f"Bearer {create_access_token(user_id=member.id, email=member.email)}",
+        "X-Workspace-Id": str(ws.id),
+    }
+
+    # Anonymous callers cannot invite.
+    anon = app_client.post(
+        f"/api/v1/workspaces/{ws.id}/invitations", json={"email": "anon@example.com"}
+    )
+    assert anon.status_code in (401, 403)
+
+    # Non-admin members cannot invite.
+    forbidden = app_client.post(
+        f"/api/v1/workspaces/{ws.id}/invitations",
+        json={"email": "blocked@example.com"},
+        headers=member_headers,
+    )
+    assert forbidden.status_code == 403
+
+    # Admin creates an invitation.
+    invite_email = f"invitee_{uuid.uuid4().hex[:6]}@example.com"
+    created = app_client.post(
+        f"/api/v1/workspaces/{ws.id}/invitations",
+        json={"email": invite_email, "role": "member"},
+        headers=admin_headers,
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["email"] == invite_email
+    assert body["role"] == "member"
+
+    # Admin lists pending invitations.
+    listed = app_client.get(
+        f"/api/v1/workspaces/{ws.id}/invitations", headers=admin_headers
+    )
+    assert listed.status_code == 200
+    assert invite_email in [i["email"] for i in listed.json()]
+
+    # Invalid role is rejected by schema validation.
+    invalid = app_client.post(
+        f"/api/v1/workspaces/{ws.id}/invitations",
+        json={"email": invite_email, "role": "wizard"},
+        headers=admin_headers,
+    )
+    assert invalid.status_code == 422

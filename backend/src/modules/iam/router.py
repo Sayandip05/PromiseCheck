@@ -3,6 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -10,11 +11,14 @@ from core.database import get_db
 from core.security import (
     bearer_scheme,
     blacklist_access_token,
+    Role,
 )
-from modules.iam.dependencies import get_current_user
-from modules.iam.models import User
+from modules.iam.dependencies import get_current_user, get_current_user_optional
+from modules.iam.models import Invitation, Membership, User
 from modules.iam.schemas import (
     GoogleAuthRequest,
+    InvitationRequest,
+    InvitationResponse,
     MembershipResponse,
     RefreshTokenRequest,
     TokenResponse,
@@ -260,12 +264,20 @@ async def get_current_user_profile(
 
 
 @workspaces_router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
-async def create_workspace(payload: WorkspaceCreateRequest, db: AsyncSession = Depends(get_db)):
-    """Create a new tenant workspace."""
+async def create_workspace(
+    payload: WorkspaceCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Create a new tenant workspace.
+
+    When invoked by an authenticated caller, that user is attached as ADMIN.
+    Anonymous provisioning is permitted (matching the public route contract)
+    and simply skips membership creation.
+    """
     try:
-        # For Phase 1 scaffold, provision root workspace
-        system_user_id = uuid.uuid4()
-        workspace = await WorkspaceService.create_workspace(db, system_user_id, payload)
+        creator_id = current_user.id if current_user else None
+        workspace = await WorkspaceService.create_workspace(db, creator_id, payload)
         return workspace
     except ValueError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
@@ -283,5 +295,83 @@ async def get_workspace(workspace_id: uuid.UUID, db: AsyncSession = Depends(get_
 @workspaces_router.get("/{workspace_id}/members", response_model=list[MembershipResponse])
 async def list_workspace_members(workspace_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     """List members and their roles within a workspace."""
-    return await WorkspaceService.list_members(db, workspace_id)
+    res = await db.execute(
+        select(Membership, User)
+        .join(User, Membership.user_id == User.id)
+        .where(Membership.workspace_id == workspace_id)
+    )
+    return [
+        MembershipResponse(
+            id=membership.id,
+            workspace_id=membership.workspace_id,
+            user_id=membership.user_id,
+            role=membership.role,
+            created_at=membership.created_at,
+            email=user.email,
+            full_name=user.full_name,
+        )
+        for membership, user in res.all()
+    ]
+
+
+@workspaces_router.post(
+    "/{workspace_id}/invitations",
+    response_model=InvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_workspace_invitation(
+    workspace_id: uuid.UUID,
+    payload: InvitationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Invite a teammate to a workspace (workspace admins only)."""
+    membership = await WorkspaceService.get_user_membership(db, workspace_id, current_user.id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this workspace.",
+        )
+    if membership.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only workspace admins can invite members.",
+        )
+
+    invitation, _raw_token = await WorkspaceService.create_invitation(
+        db=db,
+        workspace_id=workspace_id,
+        email=payload.email,
+        role=payload.role,
+    )
+    await db.commit()
+    await db.refresh(invitation)
+    return invitation
+
+
+@workspaces_router.get(
+    "/{workspace_id}/invitations",
+    response_model=list[InvitationResponse],
+)
+async def list_workspace_invitations(
+    workspace_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List pending (unaccepted) invitations for a workspace."""
+    membership = await WorkspaceService.get_user_membership(db, workspace_id, current_user.id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this workspace.",
+        )
+    res = await db.execute(
+        select(Invitation)
+        .where(
+            Invitation.workspace_id == workspace_id,
+            Invitation.accepted_at.is_(None),
+        )
+        .order_by(Invitation.created_at.desc())
+    )
+    return list(res.scalars().all())
 

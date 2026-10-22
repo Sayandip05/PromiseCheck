@@ -54,3 +54,7 @@ htmlcov/
 *.sqlite3
 
 promisecheck-post-deployment-audit-report.html
+
+# Local documentation & guides
+folder_structure.md
+TESTING.md
